@@ -1,0 +1,91 @@
+{
+  "title": "スライドは、開かずに作る",
+  "subtitle": "講演資料",
+  "brand": "Slide Studio",
+  "slides": [
+    {
+      "id": "s01",
+      "chapter": "",
+      "layout": "cover",
+      "html": "<div class='kicker'>Claude Code × ブラウザ</div><h1>スライドは、<br><em>開かずに作る。</em></h1><p class='lead'>台本を書けば AI がスライドにし、気になるところはブラウザでその場で直す。<br>PowerPoint を開かない資料づくりの話。</p><div class='meta'>2026年10月 ・ Slide Studio</div>",
+      "notes": "最初に「今日の資料は PowerPoint を一度も開いていません」と言ってから始める。"
+    },
+    {
+      "id": "s02",
+      "chapter": "CHAPTER 01",
+      "layout": "section",
+      "html": "<div class='num'>01</div><h2>いまの資料づくり、<br>どこで時間が消えている?</h2>",
+      "notes": "会場に「資料づくりで一番つらいのはどこか」を聞く。"
+    },
+    {
+      "id": "s03",
+      "chapter": "CHAPTER 01",
+      "layout": "cards",
+      "html": "<div class='eyebrow'>いまの資料づくり ・ 課題</div><h2 class='ttl'>時間が消える場所は、<em>中身ではなく周辺</em>にある</h2><div class='grid3'><div class='card'><div class='no'>01</div><h3>体裁合わせ</h3><p>フォント、余白、位置揃え。考える時間より、整える時間のほうが長い。</p></div><div class='card'><div class='no'>02</div><h3>修正の往復</h3><p>「ここ直して」を口頭やチャットで伝え、反映を待ち、また確認する。</p></div><div class='card'><div class='no'>03</div><h3>版の管理</h3><p>最終版_v3_修正済み.pptx。どれが最新か、誰も確信がない。</p></div></div>",
+      "notes": "3つとも「資料の中身」ではないことを強調する。"
+    },
+    {
+      "id": "s04",
+      "chapter": "CHAPTER 01",
+      "layout": "compare",
+      "html": "<div class='eyebrow'>いまの資料づくり ・ 比較</div><h2 class='ttl'>作り方を変えると、<em>手を動かす場所</em>が変わる</h2><div class='cols'><div class='col before'><div class='tag'>これまで</div><ul><li>PowerPoint を開いて1枚ずつ作る</li><li>修正はファイルを送り合って依頼</li><li>発表時は別の画面で原稿を見る</li><li>共有は添付ファイル</li></ul></div><div class='arrow'>→</div><div class='col after'><div class='tag'>これから</div><ul><li>台本から AI がまとめて作る</li><li>ブラウザ上でメモを書き、AI に渡す</li><li>発表者ツールが次のスライドと時間を表示</li><li>共有は URL ひとつ</li></ul></div></div>",
+      "notes": "左右を指さしながら1行ずつ対応させて読む。"
+    },
+    {
+      "id": "s05",
+      "chapter": "CHAPTER 02",
+      "layout": "section",
+      "html": "<div class='num'>02</div><h2>しくみは、<br>台本とブラウザだけ。</h2>",
+      "notes": ""
+    },
+    {
+      "id": "s06",
+      "chapter": "CHAPTER 02",
+      "layout": "steps",
+      "html": "<div class=\"eyebrow\">しくみ ・ 流れ</div><h2 class=\"ttl\">人は<em>考えて指示する</em>だけ。手を動かすのは AI</h2><div class=\"flow\"><div class=\"step\"><div class=\"who\">人</div><h3>台本を書く</h3><p>話す順番と言いたいことを文章で。</p></div><div class=\"step ai\"><div class=\"who\">AI</div><h3>スライドを生成</h3><p>Claude Code が deck.json を作る。</p></div><div class=\"step\"><div class=\"who\">人</div><h3>見て、メモする</h3><p>気になる所に M キーでメモ。</p></div><div class=\"step ai\"><div class=\"who\">AI</div><h3>まとめて修正</h3><p>メモを貼れば一括で直る。</p></div></div>",
+      "notes": "「人」と「AI」が交互になっていることを見せる。"
+    },
+    {
+      "id": "s07",
+      "chapter": "CHAPTER 02",
+      "layout": "cards",
+      "html": "<div class='eyebrow'>しくみ ・ 機能</div><h2 class='ttl'>ブラウザの中に、<em>資料づくりの道具</em>が全部ある</h2><div class='grid3 small'><div class='card'><div class='no'>01</div><h3>目次とサムネイル</h3><p>左の一覧から好きなスライドへ飛べる。</p></div><div class='card'><div class='no'>02</div><h3>一覧とスクロール</h3><p>資料全体の流れをひと目で確認。</p></div><div class='card'><div class='no'>03</div><h3>その場で編集</h3><p>E キーで文字を直接書き換えて保存。</p></div><div class='card'><div class='no'>04</div><h3>メモ → Claude Code</h3><p>メモをまとめてコピーし AI に渡す。</p></div><div class='card'><div class='no'>05</div><h3>2人で同時に編集</h3><p>同じ URL を開けば変更がすぐ届く。</p></div><div class='card'><div class='no'>06</div><h3>発表者ツール</h3><p>次のスライドと経過時間を手元に。</p></div></div>",
+      "notes": "このあと実演するので、ここはさらっと。"
+    },
+    {
+      "id": "s08",
+      "chapter": "CHAPTER 02",
+      "layout": "stats",
+      "html": "<div class='eyebrow'>しくみ ・ 特徴</div><h2 class='ttl'>必要なものは、<em>驚くほど少ない</em></h2><div class='grid3'><div class='stat'><div class='label'>編集を始める操作</div><div class='big'>1<span>キー</span></div><p>E を押せば、文字をそのまま書き換えられる。</p></div><div class='stat'><div class='label'>追加で入れるソフト</div><div class='big'>0<span>個</span></div><p>Node.js とブラウザがあれば動く。</p></div><div class='stat'><div class='label'>資料の実体</div><div class='big'>1<span>ファイル</span></div><p>全スライドは deck.json ひとつに入っている。</p></div></div>",
+      "notes": "数字はこのシステム自体の話。外部の統計ではない。"
+    },
+    {
+      "id": "s09",
+      "chapter": "CHAPTER 02",
+      "layout": "chart",
+      "html": "<div class='eyebrow'>しくみ ・ 修正の手間</div><h2 class='ttl'>修正1回にかかる手順の数(<em>イメージ</em>)</h2><div class='chartbox'><div class='bars'><div class='bar' style='--v:100'><b>8</b><span>ファイルを送って依頼</span></div><div class='bar' style='--v:62'><b>5</b><span>自分で PowerPoint を直す</span></div><div class='bar hi' style='--v:25'><b>2</b><span>メモして Claude Code に貼る</span></div></div><p class='src'>※ 手順の数は説明用のイメージです(実測値ではありません)。</p></div>",
+      "notes": "イメージ図であることを口頭でも必ず言う。"
+    },
+    {
+      "id": "s10",
+      "chapter": "CHAPTER 03",
+      "layout": "section",
+      "html": "<div class='num'>03</div><h2>今日から、<br>どう始めるか。</h2>",
+      "notes": ""
+    },
+    {
+      "id": "s11",
+      "chapter": "CHAPTER 03",
+      "layout": "bullets",
+      "html": "<div class='eyebrow'>はじめ方 ・ 3ステップ</div><h2 class='ttl'>始めるのに必要なのは、<em>3つの手順</em>だけ</h2><ol class='big-list'><li><b>サーバーを起動する</b><span>node server.js を実行し、表示された URL をブラウザで開く。</span></li><li><b>台本を書く</b><span>台本.md に、話す順番と伝えたいことを書く。</span></li><li><b>Claude Code に頼む</b><span>「台本.md からスライドを作って」と伝えるだけ。</span></li></ol>",
+      "notes": "実際に node server.js を打つところを見せてもよい。"
+    },
+    {
+      "id": "s12",
+      "chapter": "CHAPTER 03",
+      "layout": "quote",
+      "html": "<p class='q'>資料は「作る」より、<br><em>「直す」</em>ほうが速くなった。</p><p class='by'>— だから、まず雑に作らせて、ブラウザで直す。</p>",
+      "notes": "締め。質疑へ。"
+    }
+  ]
+}

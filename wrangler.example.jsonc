@@ -1,0 +1,40 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "irodori",
+  // 自分の Cloudflare アカウント ID(`npx wrangler whoami` で確認できる)。
+  // 複数アカウントにログインしている場合の誤デプロイ防止にもなるので入れておくのがおすすめ
+  "account_id": "<YOUR_ACCOUNT_ID>",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-09-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true },
+  // 定期実行(triggers.crons)は使っていない
+  "vars": {
+    // "1" にすると、ログイン・クラウド保存を止めた公開デモになる(ブラウザ内保存のみ)。
+    // 通常運用は "0"
+    "DEMO": "0"
+  },
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "single-page-application",
+    // /api/* だけ Worker を先に通す。それ以外は静的ファイル(無ければ index.html)
+    "run_worker_first": ["/api/*"]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "irodori",
+      // `npx wrangler d1 create irodori` の出力に表示される database_id を貼る
+      "database_id": "<YOUR_D1_DATABASE_ID>",
+      "migrations_dir": "worker/migrations"
+    }
+  ],
+  // `npx wrangler r2 bucket create irodori` で作成
+  "r2_buckets": [{ "binding": "BUCKET", "bucket_name": "irodori" }],
+  // 認証系の回数制限(IP ごと)。namespace_id はアカウント内で一意な任意の数字。
+  // ratelimits が使えない環境なら、この項目ごと削除しても動く(Worker 側は未設定を許容している)
+  "ratelimits": [
+    { "name": "AUTH_LIMIT", "namespace_id": "4101", "simple": { "limit": 30, "period": 60 } },
+    { "name": "REGISTER_LIMIT", "namespace_id": "4102", "simple": { "limit": 3, "period": 60 } }
+  ]
+}

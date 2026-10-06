@@ -1,0 +1,14 @@
+.anim-panel { display: flex; flex-direction: column; gap: 10px; }
+.anim-grid { display: flex; flex-wrap: wrap; gap: 6px; }
+.anim-preview { background: #f3f4f6; border: 1px solid var(--line); border-radius: 8px; display: flex; align-items: center; justify-content: center; min-height: 80px; overflow: hidden; }
+.anim-preview canvas { max-width: 100%; height: auto !important; display: block; }
+.anim-bar { height: 8px; background: var(--line); border-radius: 999px; overflow: hidden; }
+.anim-bar > i { display: block; height: 100%; background: linear-gradient(135deg, var(--accent), var(--accent-2)); transition: width .2s; }
+.anim-panel input[type=range] { width: 100%; }
+
+.present { position: fixed; inset: 0; z-index: 9999; background: #000; display: flex; align-items: center; justify-content: center; cursor: pointer; user-select: none; }
+.present-stage { display: flex; align-items: center; justify-content: center; }
+.present-stage canvas { display: block; }
+.present-num { position: absolute; right: 16px; bottom: 12px; color: rgba(255,255,255,.7); font-size: 13px; background: rgba(0,0,0,.4); padding: 3px 10px; border-radius: 999px; pointer-events: none; }
+.present-close { position: absolute; right: 12px; top: 12px; background: rgba(0,0,0,.45); color: #fff; border: 0; border-radius: 999px; padding: 6px 12px; font-size: 12px; opacity: 0; transition: opacity .2s; }
+.present:hover .present-close { opacity: 1; }

@@ -1,0 +1,154 @@
+:root {
+  --bg: #eef2fb; --panel: #fff; --ink: #18203a; --sub: #6a7390; --line: #e2e7f3; --main: #2453e8;
+  --soft: #f2f5ff; --dark: #121a33; --warn: #ff7a45;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body { background: var(--bg); color: var(--ink); font: 14px/1.5 "Hiragino Sans", "Noto Sans JP", system-ui, sans-serif; }
+button { font: inherit; cursor: pointer; }
+[hidden] { display: none !important; }
+
+/* 拡大縮小の器:中に .scaler > .slide を置く */
+.fit { position: relative; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
+.scaler { position: relative; flex: none; }
+.scaler > .slide { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+.shadow > .slide { box-shadow: 0 10px 40px rgba(20, 40, 110, .12); border-radius: 6px; }
+
+#app { display: grid; grid-template-rows: 56px 1fr 48px; height: 100vh; }
+
+/* 上部バー */
+.top { display: flex; align-items: center; gap: 14px; padding: 0 16px; background: var(--panel); border-bottom: 1px solid var(--line); }
+.top .doc { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--sub); }
+.top .doc b { color: var(--ink); }
+.top .logo { color: var(--main); margin-right: 8px; }
+.top .sep { margin: 0 8px; color: #c5cbe0; }
+.group { display: flex; gap: 6px; }
+.seg { border: 1px solid var(--line); background: #fff; padding: 6px 14px; color: var(--sub); }
+.seg:first-child { border-radius: 8px 0 0 8px; } .seg:last-child { border-radius: 0 8px 8px 0; } .seg + .seg { margin-left: -7px; }
+.seg.on { background: var(--main); border-color: var(--main); color: #fff; }
+.pill { border: 1px solid var(--line); background: #fff; padding: 6px 14px; border-radius: 999px; color: var(--ink); }
+.pill.on { background: var(--warn); border-color: var(--warn); color: #fff; }
+.pill.dark { background: var(--dark); color: #fff; border-color: var(--dark); }
+.presence { font-size: 12px; color: var(--sub); white-space: nowrap; }
+.presence::before { content: "●"; color: #29c26a; margin-right: 4px; }
+
+.body { display: flex; min-height: 0; }
+
+/* 左:目次とサムネイル */
+.side { width: 270px; flex: none; background: var(--panel); border-right: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; }
+.tabs { display: flex; padding: 10px 10px 0; gap: 4px; border-bottom: 1px solid var(--line); }
+.tabs button { flex: 1; border: 0; background: none; padding: 8px 4px; color: var(--sub); border-bottom: 2px solid transparent; }
+.tabs button.on { color: var(--main); border-bottom-color: var(--main); font-weight: 700; }
+.toc, .thumbs { flex: 1; overflow: auto; padding: 8px 8px 24px; }
+.toc .chap { font-size: 11px; font-weight: 700; color: var(--main); letter-spacing: .06em; padding: 12px 8px 4px; }
+.toc .item { display: flex; gap: 8px; padding: 7px 8px; border-radius: 8px; cursor: pointer; color: var(--ink); font-size: 13px; }
+.toc .item .n { color: #a3abc4; width: 18px; flex: none; text-align: right; }
+.toc .item:hover { background: var(--soft); }
+.toc .item.on { background: var(--main); color: #fff; } .toc .item.on .n { color: #cfd9ff; }
+.toc .item .dot { margin-left: auto; color: var(--warn); }
+.thumbs .th { display: flex; gap: 8px; padding: 6px; border-radius: 8px; cursor: pointer; }
+.thumbs .th .n { width: 18px; color: #a3abc4; font-size: 12px; text-align: right; flex: none; }
+.thumbs .th .box { flex: 1; aspect-ratio: 16/9; border: 2px solid transparent; border-radius: 6px; overflow: hidden; background: #fff; }
+.thumbs .th.on .box { border-color: var(--main); }
+
+/* 中央 */
+.main { flex: 1; min-width: 0; position: relative; }
+.stage { position: absolute; inset: 0; padding: 28px; }
+.gridview, .scrollview { position: absolute; inset: 0; overflow: auto; padding: 24px; display: none; }
+.mode-grid .stage, .mode-scroll .stage { display: none; }
+.mode-grid .gridview { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 18px; align-content: start; }
+.mode-scroll .scrollview { display: flex; flex-direction: column; align-items: center; gap: 28px; }
+.mode-grid .side, .mode-scroll .side { display: none; }
+.gridview .cell { cursor: pointer; }
+.gridview .cell .box { aspect-ratio: 16/9; background: #fff; border-radius: 8px; overflow: hidden; border: 2px solid transparent; box-shadow: 0 4px 14px rgba(20,40,110,.08); }
+.gridview .cell.on .box { border-color: var(--main); }
+.gridview .cell .cap { font-size: 12px; color: var(--sub); margin-top: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.scrollview .srow { width: min(100%, 1100px); }
+.scrollview .srow .box { aspect-ratio: 16/9; }
+.scrollview .srow .cap { font-size: 12px; color: var(--sub); margin-bottom: 6px; }
+
+/* 編集中 */
+.editing [contenteditable] { outline: 1px dashed rgba(36, 83, 232, .45); outline-offset: 3px; border-radius: 2px; cursor: text; }
+.editing [contenteditable]:hover { outline-color: var(--warn); background: rgba(255, 122, 69, .06); }
+.editing [contenteditable]:focus { outline: 2px solid var(--warn); background: rgba(255, 122, 69, .08); }
+
+/* 右:メモ・編集 */
+.panel { width: 330px; flex: none; background: var(--panel); border-left: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; }
+.panel-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px 0; }
+.x { border: 0; background: none; font-size: 20px; color: var(--sub); }
+.panel section { padding: 12px 14px; overflow: auto; flex: 1; min-height: 0; }
+.pane-title { font-size: 12px; font-weight: 700; color: var(--sub); margin: 4px 0 8px; }
+.memo-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
+.memo { background: var(--soft); border-radius: 8px; padding: 8px 10px; font-size: 13px; position: relative; }
+.memo .who { font-size: 11px; color: var(--sub); }
+.memo .del { position: absolute; right: 6px; top: 4px; border: 0; background: none; color: #a3abc4; }
+.memo.g { background: #fff4ec; }
+.memo-group { font-size: 12px; font-weight: 700; color: var(--main); margin-top: 6px; cursor: pointer; }
+.empty { color: #a3abc4; font-size: 12px; }
+textarea { width: 100%; min-height: 90px; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font: inherit; resize: vertical; }
+.chk { display: block; font-size: 12px; color: var(--sub); margin: 6px 0; }
+.row { display: flex; gap: 8px; align-items: center; margin: 8px 0; }
+.btn { border: 1px solid var(--line); background: #fff; border-radius: 8px; padding: 7px 12px; color: var(--ink); }
+.btn:disabled { opacity: .45; cursor: default; }
+.btn.primary { background: var(--main); border-color: var(--main); color: #fff; }
+.btn.dark { background: var(--dark); border-color: var(--dark); color: #fff; }
+.btn.ghost { border-color: transparent; color: var(--sub); }
+.btn.wide { width: 100%; }
+.btn.small { padding: 4px 10px; font-size: 12px; }
+.hint { font-size: 11px; color: #9aa3bd; margin: 4px 0; }
+.callout { background: #fff4ec; color: #a8461b; border-radius: 8px; padding: 10px 12px; font-size: 12px; margin-bottom: 8px; }
+.panel-foot { padding: 12px 14px; border-top: 1px solid var(--line); }
+
+/* 下部バー */
+.bottom { display: flex; align-items: center; gap: 12px; padding: 0 16px; background: var(--panel); border-top: 1px solid var(--line); }
+.nav { width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--line); background: #fff; font-size: 18px; line-height: 1; }
+.pageno { font-variant-numeric: tabular-nums; color: var(--sub); min-width: 54px; text-align: center; }
+.progress { width: 160px; height: 4px; background: var(--line); border-radius: 4px; overflow: hidden; }
+.progress div { height: 100%; background: var(--main); transition: width .2s; }
+.curtitle { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--sub); }
+.keys { font-size: 11px; color: #9aa3bd; white-space: nowrap; }
+kbd { display: inline-block; border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; margin: 0 2px; background: #fafbff; font: 11px/1.6 inherit; }
+
+/* 全画面(発表) */
+#app.present { grid-template-rows: 1fr; background: #000; }
+#app.present .top, #app.present .bottom, #app.present .side, #app.present .panel { display: none !important; }
+#app.present .stage { padding: 0; }
+#app.present .main { background: #000; }
+
+/* 発表者ツール */
+.presenter { display: grid; grid-template-columns: 1fr 360px; height: 100vh; background: var(--dark); color: #fff; gap: 20px; padding: 20px; }
+.p-main { display: flex; flex-direction: column; min-height: 0; }
+.p-cur { flex: 1; min-height: 0; }
+.p-label { font-size: 12px; color: #8f9ac0; margin: 10px 0 6px; letter-spacing: .06em; }
+.p-ctrl { display: flex; gap: 10px; margin-top: 14px; }
+.p-side { display: flex; flex-direction: column; min-height: 0; overflow: auto; }
+.p-next { aspect-ratio: 16/9; flex: none; }
+.p-nexttitle { font-size: 13px; color: #c9d1ee; margin-top: 6px; }
+.p-timer { font-size: 64px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.p-clock { color: #8f9ac0; margin-bottom: 8px; }
+.p-notes { background: rgba(255,255,255,.06); border-radius: 8px; padding: 10px 12px; min-height: 80px; white-space: pre-wrap; font-size: 15px; }
+.presenter .btn { background: rgba(255,255,255,.08); color: #fff; border-color: rgba(255,255,255,.15); }
+.presenter .btn.primary { background: var(--main); border-color: var(--main); }
+.presenter .btn.small { align-self: flex-start; }
+.presenter .hint { color: #7c87ad; margin-top: 12px; }
+
+.audience { position: fixed; inset: 0; background: #000; }
+
+/* トースト */
+.toast { position: fixed; left: 50%; bottom: 70px; transform: translateX(-50%) translateY(20px); background: var(--dark); color: #fff; padding: 10px 18px; border-radius: 999px; font-size: 13px; opacity: 0; pointer-events: none; transition: .2s; z-index: 50; }
+.toast.show { opacity: 1; transform: translateX(-50%); }
+
+/* PDF(印刷) */
+.print { display: none; }
+@page { size: 1280px 720px; margin: 0; }
+@media print {
+  body { background: #fff; }
+  #app, #presenter, #audience, .toast { display: none !important; }
+  .print { display: block; }
+  .print .slide { break-after: page; page-break-after: always; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
+
+@media (max-width: 900px) {
+  .side { display: none; } .keys, .curtitle { display: none; } .panel { position: absolute; right: 0; top: 56px; bottom: 48px; z-index: 5; }
+  .top { overflow-x: auto; }
+}

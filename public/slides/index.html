@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>スライド編集システム</title>
+<link rel="stylesheet" href="slides.css">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<!-- ===== 通常画面 ===== -->
+<div id="app" class="mode-slide">
+  <header class="top">
+    <div class="doc"><span class="logo">▣</span><b id="docTitle"></b><span class="sep">|</span><span id="docSub"></span></div>
+    <div class="group">
+      <button data-mode="slide" class="seg on">スライド</button><button data-mode="grid" class="seg">一覧</button><button data-mode="scroll" class="seg">スクロール</button>
+    </div>
+    <div class="group">
+      <button id="btnMemo" class="pill" title="M">メモ</button>
+      <button id="btnEdit" class="pill" title="E">編集</button>
+      <button id="btnPresenter" class="pill" title="P">発表者ツール</button>
+    </div>
+    <div class="group">
+      <button id="btnFull" class="pill dark" title="F">全画面</button>
+      <button id="btnPdf" class="pill">PDF</button>
+    </div>
+    <div id="presence" class="presence" title="同じURLを開いている人数"></div>
+  </header>
+
+  <div class="body">
+    <aside class="side">
+      <div class="tabs"><button data-side="toc" class="on">目次</button><button data-side="thumbs">サムネイル</button></div>
+      <div id="toc" class="toc"></div>
+      <div id="thumbs" class="thumbs" hidden></div>
+    </aside>
+
+    <main class="main">
+      <div id="stage" class="stage"><div id="stageInner" class="fit"></div></div>
+      <div id="grid" class="gridview"></div>
+      <div id="scroll" class="scrollview"></div>
+    </main>
+
+    <aside id="panel" class="panel" hidden>
+      <div class="panel-head"><b>メモ・編集</b><button id="panelClose" class="x" title="閉じる">×</button></div>
+      <div class="tabs"><button data-ptab="this" class="on">このスライド</button><button data-ptab="all">すべて <span id="memoCount"></span></button><button data-ptab="edit">編集</button></div>
+
+      <section data-pane="this">
+        <div class="pane-title" id="memoSlideTitle"></div>
+        <div id="memoList" class="memo-list"></div>
+        <textarea id="memoText" placeholder="このスライドへのコメントを書く(例:グラフの色をもっと目立たせて)"></textarea>
+        <label class="chk"><input type="checkbox" id="memoGlobal"> 資料全体へのコメントにする</label>
+        <div class="row"><button id="memoAdd" class="btn primary">追加する</button><span class="hint">⌘ + Enter</span></div>
+      </section>
+
+      <section data-pane="all" hidden>
+        <div id="memoAll" class="memo-list"></div>
+      </section>
+
+      <section data-pane="edit" hidden>
+        <div class="callout" id="editCallout">スライド上の文字をクリックすると、その場で書き換えられます。グラフの位置や色など、文字以外の変更はメモに書いて Claude Code に頼んでください。</div>
+        <div class="row">
+          <button id="editToggle" class="btn">編集を始める(E)</button>
+        </div>
+        <div class="row">
+          <button id="editSave" class="btn primary" disabled>保存する(⌘S)</button>
+          <button id="editCancel" class="btn" disabled>元に戻す(Esc)</button>
+        </div>
+        <div class="pane-title">発表者メモ(発表者ツールに表示)</div>
+        <textarea id="notesText" placeholder="話すこと・注意点"></textarea>
+        <div class="row"><button id="notesSave" class="btn">発表者メモを保存</button></div>
+      </section>
+
+      <footer class="panel-foot">
+        <button id="memoCopy" class="btn dark wide">コピー(Claude Code に貼る用)</button>
+        <div class="row">
+          <button id="memoMd" class="btn">.md で保存</button>
+          <button id="memoClear" class="btn ghost">コメントを消す</button>
+        </div>
+        <p class="hint">コピーした内容を Claude Code にそのまま貼ると、スライドがまとめて修正されます。</p>
+      </footer>
+    </aside>
+  </div>
+
+  <footer class="bottom">
+    <button id="prev" class="nav" title="←">‹</button>
+    <span id="pageNo" class="pageno"></span>
+    <button id="next" class="nav" title="→">›</button>
+    <div class="progress"><div id="progressBar"></div></div>
+    <span id="curTitle" class="curtitle"></span>
+    <span class="keys"><kbd>←</kbd><kbd>→</kbd> 移動 <kbd>E</kbd> 編集 <kbd>M</kbd> メモ <kbd>G</kbd> 一覧 <kbd>P</kbd> 発表者 <kbd>F</kbd> 全画面</span>
+  </footer>
+</div>
+
+<!-- ===== 発表者ツール(?view=presenter) ===== -->
+<div id="presenter" class="presenter" hidden>
+  <div class="p-main">
+    <div class="p-label">現在のスライド <span id="pPage"></span></div>
+    <div class="p-cur"><div id="pCur" class="fit"></div></div>
+    <div class="p-ctrl">
+      <button id="pPrev" class="btn">‹ 前へ</button>
+      <button id="pNext" class="btn primary">次へ ›</button>
+      <button id="pOpenAudience" class="btn">投影用ウィンドウを開く</button>
+    </div>
+  </div>
+  <div class="p-side">
+    <div class="p-label">次のスライド</div>
+    <div class="p-next"><div id="pNext2" class="fit"></div></div>
+    <div id="pNextTitle" class="p-nexttitle"></div>
+    <div class="p-label">経過時間</div>
+    <div id="pTimer" class="p-timer">00:00</div>
+    <div class="p-clock" id="pClock"></div>
+    <button id="pReset" class="btn small">時間を0に戻す</button>
+    <div class="p-label">発表者メモ</div>
+    <div id="pNotes" class="p-notes"></div>
+    <p class="hint">投影用ウィンドウをプロジェクター側の画面へ移動して全画面にしてください。どちらの画面で操作しても同期します。</p>
+  </div>
+</div>
+
+<!-- ===== 投影用(?view=audience) ===== -->
+<div id="audience" class="audience" hidden><div id="aCur" class="fit"></div></div>
+
+<!-- PDF(印刷)用 -->
+<div id="print" class="print"></div>
+<div id="toast" class="toast"></div>
+<script src="bridge.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
