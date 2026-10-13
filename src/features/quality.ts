@@ -129,7 +129,10 @@ export function checkDesign(doc: DesignDoc): Issue[] {
         }
         // --- 文字と背景のコントラスト ---
         const fg = solids(o.fill)
-        if (fg) {
+        // 大きくて短い飾り文字(薄い背景番号「01」や大きな引用符など)は読ませる文字ではないので対象外
+        const plain = String(o.text ?? '').replace(/\s/g, '')
+        const decorative = Array.from(plain).length <= 3 && fs >= Math.min(W, H) * 0.08
+        if (fg && !decorative) {
           const bgs = backgroundsUnder(objs, index, b, json.background ?? json.backgroundColor)
           if (bgs) {
             const alpha = num(o.opacity, 1)
