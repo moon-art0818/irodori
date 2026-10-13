@@ -1,5 +1,9 @@
 import { FabricImage, Textbox } from 'fabric'
-import { LayoutTemplate, Shapes, Type, Upload, PaintBucket, Layers, Eye, EyeOff, Lock, ImagePlus, Image as ImageIcon, Table, BarChart3, QrCode, PieChart, LineChart, Palette, X, Plus } from 'lucide-react'
+import { LayoutTemplate, Shapes, Type, Upload, PaintBucket, Layers, Eye, EyeOff, Lock, ImagePlus, Image as ImageIcon, Table, BarChart3, QrCode, PieChart, LineChart, Palette, X, Plus, PenLine, Highlighter, MousePointer2, FileUp } from 'lucide-react'
+import { COLLAGE_LAYOUTS, buildCollage } from '../features/collage'
+import { addUserFont, userFontNames, loadUserFonts, onUserFontsChange } from '../features/userFonts'
+import { listBrands, getActiveBrandId, setActiveBrand, createBrand, onBrandsChange } from '../features/brands'
+import { toast } from 'sonner'
 import { getBrand, saveBrand, onBrandChange, type BrandKit } from '../editor/brand'
 import { putAsset, downscale } from '../editor/assets'
 import { FRAME_SHAPES, makeFrame, makeTable, makeChart, makeQR, CHART_COLORS, frameShape } from '../editor/elements'
@@ -15,12 +19,13 @@ import { TEMPLATES, TEMPLATE_CATEGORIES, templateToJSON, type Template } from '.
 import { FONTS } from '../data/fonts'
 import { GRADIENTS, PALETTE } from './ColorPicker'
 
-export type Tab = 'templates' | 'elements' | 'photos' | 'text' | 'brand' | 'uploads' | 'background' | 'layers'
+export type Tab = 'templates' | 'elements' | 'photos' | 'text' | 'draw' | 'brand' | 'uploads' | 'background' | 'layers'
 export const TABS: [Tab, string, React.ReactNode][] = [
   ['templates', 'テンプレート', <LayoutTemplate size={22} />],
   ['elements', '素材', <Shapes size={22} />],
   ['photos', '写真', <ImageIcon size={22} />],
   ['text', 'テキスト', <Type size={22} />],
+  ['draw', '描く', <PenLine size={22} />],
   ['brand', 'ブランド', <Palette size={22} />],
   ['uploads', 'アップロード', <Upload size={22} />],
   ['background', '背景', <PaintBucket size={22} />],
@@ -49,6 +54,7 @@ export function LeftPanel({ tab, ed, onApplyTemplate, version }: { tab: Tab; ed:
       {tab === 'photos' && <PhotosTab ed={ed} />}
       {tab === 'text' && <TextTab ed={ed} />}
       {tab === 'brand' && <BrandTab ed={ed} />}
+      {tab === 'draw' && <DrawTab ed={ed} />}
       {tab === 'uploads' && <UploadsTab ed={ed} />}
       {tab === 'background' && <BackgroundTab ed={ed} />}
       {tab === 'layers' && <LayersTab ed={ed} version={version} />}
@@ -131,6 +137,21 @@ function ElementsTab({ ed }: { ed: EditorCore }) {
         <p className="hint">フレームを選んだ状態で写真やアップロード画像をクリックすると、枠の中に入ります。</p>
         <div className="shape-grid">
           {FRAME_SHAPES.map((f) => <button key={f.id} className="shape-btn" title={f.label} draggable onDragStart={dragAdd((e) => e.place(makeFrame(f.id, size)))} onClick={() => addFrame(f.id)} dangerouslySetInnerHTML={{ __html: frameSvg(f.shape) }} />)}
+        </div>
+      </>}
+      {(!q || '写真グリッドコラージュフレーム'.includes(q)) && <>
+        <div className="sec-title">写真グリッド・コラージュ</div>
+        <p className="hint">ページいっぱいに写真フレームを並べます。各フレームを選んで写真をクリックすると入ります。</p>
+        <div className="collage-grid">
+          {COLLAGE_LAYOUTS.map((l) => (
+            <button key={l.id} className="collage-btn" title={l.label} onClick={() => {
+              const objs = buildCollage(l.id, ed.width, ed.height, Math.round(Math.min(ed.width, ed.height) * 0.015), 0)
+              for (const o of objs) { (o as any).id = Math.random().toString(36).slice(2, 10); ed.canvas.add(o) }
+              ed.canvas.requestRenderAll(); ed.commit(); toast.success(`${l.label}(${l.count}枚)を配置しました`)
+            }}>
+              <svg viewBox="0 0 100 100">{l.cells.map((c: any, i: number) => <rect key={i} x={c.x * 100 + 2} y={c.y * 100 + 2} width={Math.max(1, c.w * 100 - 4)} height={Math.max(1, c.h * 100 - 4)} rx="3" />)}</svg>
+            </button>
+          ))}
         </div>
       </>}
       {(!q || '表グラフチャートQRコード'.includes(q)) && <>
@@ -220,6 +241,7 @@ function TextTab({ ed }: { ed: EditorCore }) {
           <button key={c.text} className="combo" style={{ fontFamily: c.fontFamily, color: c.fill, fontWeight: c.fontWeight ?? 400 }} onClick={() => ed.addText(c)}>{c.text}</button>
         ))}
       </div>
+      <UserFonts ed={ed} />
       <div className="sec-title">フォント一覧(クリックで追加)</div>
       <div className="font-list">
         {FONTS.map((f) => (
@@ -338,6 +360,7 @@ function BrandTab({ ed }: { ed: EditorCore }) {
   }
   return (
     <>
+      <BrandSwitcher />
       <p className="hint">よく使う色・フォント・ロゴを登録しておくと、どのデザインでもすぐ使えます。登録した色は色選びの一番上に出ます。</p>
       <div className="sec-title">ブランドカラー</div>
       <div className="swatches big">
@@ -389,5 +412,57 @@ function BrandTab({ ed }: { ed: EditorCore }) {
         ))}
       </div>
     </>
+  )
+}
+
+function DrawTab({ ed }: { ed: EditorCore }) {
+  const [color, setColor] = useState('#111827')
+  const [width, setWidth] = useState(6)
+  const [kind, setKind] = useState<null | 'pen' | 'marker'>(ed.drawing)
+  const set = (k: null | 'pen' | 'marker', c = color, w = width) => { setKind(k); ed.setDrawing(k, c, w) }
+  useEffect(() => () => { ed.setDrawing(null) }, [ed]) // パネルを閉じたら描画をやめる
+  return (
+    <>
+      <div className="panel-title">描く</div>
+      <div className="grid3">
+        <button className={'tool-tile' + (kind === 'pen' ? ' on' : '')} onClick={() => set('pen')}><PenLine size={18} />ペン</button>
+        <button className={'tool-tile' + (kind === 'marker' ? ' on' : '')} onClick={() => set('marker')}><Highlighter size={18} />マーカー</button>
+        <button className={'tool-tile' + (!kind ? ' on' : '')} onClick={() => set(null)}><MousePointer2 size={18} />選択</button>
+      </div>
+      <div className="sec-title">色</div>
+      <div className="swatches big">{PALETTE.slice(0, 21).map((c) => <button key={c} className="swatch-btn" style={{ background: c, outline: c === color ? '2px solid var(--accent)' : undefined }} onClick={() => { setColor(c); if (kind) set(kind, c) }} />)}</div>
+      <label className="slider"><span>太さ</span><input type="range" min={1} max={40} value={width} onChange={(e) => { setWidth(+e.target.value); if (kind) set(kind, color, +e.target.value) }} /><span className="num" style={{ border: 0 }}>{width}</span></label>
+      <p className="hint">描いた線は1本ずつ選択・移動・取り消し(⌘Z)できます。描き終えたら「選択」に戻してください。</p>
+    </>
+  )
+}
+
+function UserFonts({ ed }: { ed: EditorCore }) {
+  const [names, setNames] = useState<string[]>(userFontNames())
+  useEffect(() => { loadUserFonts().then(() => setNames(userFontNames())); return onUserFontsChange(() => setNames(userFontNames())) }, [])
+  return (
+    <>
+      <div className="sec-title">自分のフォント</div>
+      <label className="secondary-btn" style={{ cursor: 'pointer' }}><FileUp size={14} />フォントを取り込む(ttf / otf / woff)
+        <input type="file" accept=".ttf,.otf,.woff,.woff2" hidden onChange={async (e) => { const f = e.target.files?.[0]; e.target.value = ''; if (!f) return; try { const n = await addUserFont(f); toast.success(`「${n}」を追加しました`) } catch (er: any) { toast.error(er?.message ?? String(er)) } }} />
+      </label>
+      {names.length > 0 && <div className="font-list" style={{ marginTop: 6 }}>{names.map((n) => <button key={n} className="font-item" style={{ fontFamily: n }} onClick={() => ed.addText({ text: 'テキスト', fontSize: 72, fontFamily: n })}>{n}</button>)}</div>}
+      <p className="hint">取り込んだフォントはこのブラウザの中にだけ保存されます。商用利用などはフォントのライセンスに従ってください。</p>
+    </>
+  )
+}
+
+function BrandSwitcher() {
+  const [list, setList] = useState<{ id: string; name: string }[]>([])
+  const [active, setActive] = useState('')
+  const load = async () => { setList((await listBrands()).map((b: any) => ({ id: b.id, name: b.name }))); setActive(await getActiveBrandId()) }
+  useEffect(() => { load(); return onBrandsChange(load) }, [])
+  return (
+    <div className="row" style={{ marginBottom: 8 }}>
+      <select className="font-select" style={{ flex: 1, maxWidth: 'none' }} value={active} onChange={async (e) => { await setActiveBrand(e.target.value); setActive(e.target.value) }}>
+        {list.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+      </select>
+      <button className="secondary-btn" onClick={async () => { const n = prompt('新しいブランドキットの名前', `ブランド${list.length + 1}`); if (!n) return; try { const b = await createBrand(n); await setActiveBrand(b.id) } catch (er: any) { toast.error(er?.message ?? String(er)) } }}><Plus size={14} />追加</button>
+    </div>
   )
 }

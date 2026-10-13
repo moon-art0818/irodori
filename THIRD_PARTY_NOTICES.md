@@ -1,6 +1,6 @@
 # サードパーティの表記(Third-party notices)
 
-irodori 本体は [MIT](LICENSE)(Copyright (c) 2026 ryoya)です。このファイルは、配布物に含まれる、または実行時に読み込む第三者の成果物とそのライセンスの一覧です。
+irodori 本体は [MIT](LICENSE)(Copyright (c) 2026 いと)です。このファイルは、配布物に含まれる、または実行時に読み込む第三者の成果物とそのライセンスの一覧です。
 情報は `node_modules` 内の `package.json` / `info.json`(2026-10-06 時点のインストール内容)と、`public/icons/index.json`、`src/editor/bgremove.ts` から読み取ったものです。各ライセンスの全文は各パッケージ・各上流リポジトリを参照してください。
 
 ## 1. 直接の依存ライブラリ(`dependencies`)
@@ -63,7 +63,7 @@ Apache-2.0 のセット(Noto、Firefox Emoji、Material Design Icons、Remix Ico
 
 ## 6. slide-studio
 
-`public/slides/` は、同じ作者(ryoya)の別プロジェクト **slide-studio** の画面を取り込んだものです(`scripts/sync-slide-studio.mjs`)。slide-studio も本プロジェクトと同じく MIT ライセンスとして同梱します(Copyright (c) 2026 ryoya)。
+`public/slides/` は、同じ作者(いと)の別プロジェクト **slide-studio** の画面を取り込んだものです(`scripts/sync-slide-studio.mjs`)。slide-studio も本プロジェクトと同じく MIT ライセンスとして同梱します(Copyright (c) 2026 いと)。
 
 ## 7. その他の注意
 

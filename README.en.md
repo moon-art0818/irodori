@@ -134,4 +134,4 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) to contribute.
 
 ## License
 
-[MIT](LICENSE) (c) 2026 ryoya. Third-party components: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+[MIT](LICENSE) (c) 2026 いと. Third-party components: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

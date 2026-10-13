@@ -1,0 +1,57 @@
+// アニメーション GIF の書き出し。editor/animate.ts の loadScene / renderAnimationFrame(動画書き出しと同じ描画)で各コマを描き、gifenc(MIT)で符号化する
+import { GIFEncoder, applyPalette, quantize } from 'gifenc'
+import { loadScene, renderAnimationFrame } from '../editor/animate'
+import type { DesignDoc } from '../editor/types'
+
+export const GIF_MAX_SIDE = 800
+
+/**
+ * 全ページを順に GIF にする。各ページは pageSeconds 秒表示。登場アニメーションの間だけ fps でコマを作り、
+ * 完了後は最後のコマを残り時間ぶん保持する(ファイルが小さくなる)。長辺は 800px に制限。
+ * opts: pageSeconds ページ当たりの秒数 / fps 既定 12 / scale 既定 1(長辺 800px を超えない範囲で縮小) / onProgress 0〜1
+ */
+export async function exportGIF(
+  doc: DesignDoc,
+  opts: { pageSeconds: number; fps?: number; scale?: number; onProgress?: (r: number) => void },
+): Promise<Blob> {
+  if (doc.deck) throw new Error('HTML スライドは GIF に書き出せません')
+  if (!doc.pages.length) throw new Error('ページがありません')
+  const fps = Math.max(1, Math.min(30, opts.fps ?? 12))
+  const s = Math.min(opts.scale ?? 1, GIF_MAX_SIDE / Math.max(doc.width, doc.height))
+  const W = Math.max(2, Math.round(doc.width * s)), H = Math.max(2, Math.round(doc.height * s))
+  const tmp = document.createElement('canvas')
+  tmp.width = W; tmp.height = H
+  const ctx = tmp.getContext('2d', { willReadFrequently: true })!
+  const gif = GIFEncoder()
+  const n = doc.pages.length
+  const frame = (el: HTMLCanvasElement, delayMs: number) => {
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, W, H)
+    ctx.drawImage(el, 0, 0, W, H)
+    const rgba = ctx.getImageData(0, 0, W, H).data
+    const palette = quantize(rgba, 256)
+    gif.writeFrame(applyPalette(rgba, palette), W, H, { palette, delay: delayMs, repeat: 0 })
+  }
+  for (let i = 0; i < n; i++) {
+    const scene = await loadScene(doc.pages[i].json, doc.width, doc.height, s)
+    try {
+      const total = opts.pageSeconds * 1000
+      const animated = scene.anim.preset !== 'none'
+      const D = animated ? Math.min(scene.duration, opts.pageSeconds * 0.7) : 0
+      scene.duration = Math.max(0.01, D || scene.duration)
+      const step = 1000 / fps
+      let used = 0
+      for (let t = 0; t < D * 1000 - 1; t += step) {
+        renderAnimationFrame(scene, t / 1000)
+        frame(scene.el, step)
+        used += step
+        opts.onProgress?.((i + used / total) / n)
+        if (((t / step) | 0) % 4 === 3) await new Promise((r) => setTimeout(r)) // 画面を固めない
+      }
+      renderAnimationFrame(scene, animated ? D : 0) // 完了後の姿を残り時間ぶん保持
+      frame(scene.el, Math.max(step, total - used))
+    } finally { scene.dispose() }
+    opts.onProgress?.((i + 1) / n)
+  }
+  gif.finish()
+  return new Blob([gif.bytes() as BlobPart], { type: 'image/gif' })
+}

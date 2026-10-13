@@ -5,7 +5,7 @@ import { renderPage, renderPageSVG, MAX_PIXELS } from '../editor/core'
 import type { DesignDoc } from '../editor/types'
 import { usePopover } from './ColorPicker'
 
-type Fmt = 'png' | 'jpeg' | 'pdf' | 'svg'
+type Fmt = 'png' | 'jpeg' | 'pdf' | 'svg' | 'pptx' | 'gif'
 
 function save(url: string, name: string) {
   // 大きな dataURL はブラウザによって失敗するので Blob の URL に変えて保存する
@@ -41,6 +41,18 @@ export async function exportDoc(doc: DesignDoc, fmt: Fmt, scale: number, pageIdx
     const url = URL.createObjectURL(pdf.output('blob'))
     save(url, safe(doc.name) + '.pdf')
     setTimeout(() => URL.revokeObjectURL(url), 60_000)
+    return
+  }
+  if (fmt === 'pptx') {
+    const { exportPPTX } = await import('../features/pptx')
+    const blob = await exportPPTX({ ...doc, pages })
+    const url = URL.createObjectURL(blob); save(url, safe(doc.name) + '.pptx'); setTimeout(() => URL.revokeObjectURL(url), 60_000)
+    return
+  }
+  if (fmt === 'gif') {
+    const { exportGIF } = await import('../features/gif')
+    const blob = await exportGIF({ ...doc, pages }, { pageSeconds: 2 })
+    const url = URL.createObjectURL(blob); save(url, safe(doc.name) + '.gif'); setTimeout(() => URL.revokeObjectURL(url), 60_000)
     return
   }
   if (fmt === 'svg') {
@@ -83,7 +95,7 @@ export function DownloadButton({ getDoc, peekDoc, currentPage }: { getDoc: () =>
         <div className="popover right dl-pop">
           <div className="pop-label">ファイルの種類</div>
           <div className="row">
-            {([['png', 'PNG(高画質)'], ['jpeg', 'JPG(軽い)'], ['pdf', 'PDF'], ['svg', 'SVG(ベクター)']] as [Fmt, string][]).map(([v, l]) =>
+            {([['png', 'PNG(高画質)'], ['jpeg', 'JPG(軽い)'], ['pdf', 'PDF'], ['svg', 'SVG(ベクター)'], ['pptx', 'PowerPoint'], ['gif', 'GIF(アニメ)']] as [Fmt, string][]).map(([v, l]) =>
               <button key={v} className={'chip' + (fmt === v ? ' on' : '')} onClick={() => setFmt(v)}>{l}</button>)}
           </div>
           {(fmt === 'png' || fmt === 'jpeg') && <>
@@ -91,6 +103,8 @@ export function DownloadButton({ getDoc, peekDoc, currentPage }: { getDoc: () =>
             <div className="row">{[1, 2, 3].map((s) => { const m = Math.min(s, Math.sqrt(MAX_PIXELS / (doc.width * doc.height))); return <button key={s} className={'chip' + (scale === s ? ' on' : '')} onClick={() => setScale(s)}>{s}倍({Math.round(doc.width * m)}×{Math.round(doc.height * m)})</button> })}</div>
           </>}
           {fmt === 'png' && <label className="check"><input type="checkbox" checked={transparent} onChange={(e) => setTransparent(e.target.checked)} /> 背景を透明にする</label>}
+          {fmt === 'pptx' && <p className="hint">PowerPoint・Keynote・Google スライドで開けます。文字と基本図形は編集できる形で、それ以外は画像として入ります。</p>}
+          {fmt === 'gif' && <p className="hint">各ページを2秒ずつ、設定したアニメーション付きで再生する GIF(長辺 800px まで)。</p>}
           {fmt === 'svg' && <p className="hint">拡大しても劣化しない形式です。文字はフォント名で保存されるため、フォントが入っていない環境では別の書体で表示されます。</p>}
           {fmt === 'pdf' && <p className="hint">{doc.print ? `印刷用(${doc.print.mmW}×${doc.print.mmH}mm・300dpi相当)` : '画面用(ページ=デザインのピクセルサイズ)'}</p>}
           {doc.pages.length > 1 && <>

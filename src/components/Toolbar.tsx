@@ -10,6 +10,8 @@ import { makeChart, makeQR, makeTable, readTable, makeCurvedText, CHART_COLORS, 
 import { loadFonts } from '../editor/core'
 import { Textbox as TB } from 'fabric'
 import { VText } from '../editor/vtext'
+import { TEXT_EFFECTS, applyTextEffect, detectTextEffect } from '../features/textEffects'
+import { BLEND_MODES, applyBlendMode, getBlendMode } from '../features/blend'
 import type { EditorCore } from '../editor/core'
 import { FONTS } from '../data/fonts'
 import { ColorButton, usePopover } from './ColorPicker'
@@ -90,6 +92,7 @@ export function Toolbar({ ed, docColors }: { ed: EditorCore; docColors: string[]
       </Pop>
       <Pop title="透明度" icon={<SlidersHorizontal size={18} />}>
         <RangeProp ed={ed} label="透明度(%)" get={() => Math.round((o.opacity ?? 1) * 100)} set={(v) => ({ opacity: v / 100 })} min={0} max={100} />
+        <BlendSelect ed={ed} />
       </Pop>
       <Pop title="配置" icon={<Layers size={18} />} label="配置">
         <PositionControls ed={ed} multi={multi} />
@@ -146,6 +149,8 @@ function TextControls({ ed, t, docColors }: { ed: EditorCore; t: Textbox; docCol
         </div>
         <div className="pop-label">文字の背景色(マーカー)</div>
         <ColorButton title="背景色" value={t.textBackgroundColor} allowNone onPick={(c) => ed.setProp({ textBackgroundColor: c })} />
+        <div className="pop-label">テキスト効果</div>
+        <TextEffects ed={ed} t={t} />
         <div className="pop-label">曲線(文字を弧に沿わせる)</div>
         <CurveSlider ed={ed} />
         <div className="pop-label">大文字・小文字</div>
@@ -456,5 +461,29 @@ function VTextControls({ ed, v, docColors }: { ed: EditorCore; v: VText; docColo
       </Pop>
       <button className="tb-btn on" title="横書きに戻す" onClick={() => ed.toggleVertical()}><span style={{ writingMode: 'vertical-rl', fontSize: 12, fontWeight: 700 }}>縦</span></button>
     </>
+  )
+}
+
+function TextEffects({ ed, t }: { ed: EditorCore; t: Textbox }) {
+  const [cur, setCur] = useState(() => detectTextEffect(t))
+  return (
+    <div className="effect-grid">
+      {TEXT_EFFECTS.map((e) => (
+        <button key={e.id} className={'effect' + (cur === e.id ? ' on' : '')} onClick={() => { for (const o of ed.editable()) if (o instanceof TB) applyTextEffect(o, e.id); setCur(e.id); ed.canvas.requestRenderAll(); ed.commit() }}>
+          <span className={'fx fx-' + e.id}>Aa</span><small>{e.label}</small>
+        </button>
+      ))}
+    </div>
+  )
+}
+
+function BlendSelect({ ed }: { ed: EditorCore }) {
+  const o = ed.active()!
+  return (
+    <label className="slider"><span>重ね方</span>
+      <select className="font-select" style={{ gridColumn: 'span 2' }} value={getBlendMode(o)} onChange={(e) => { for (const x of ed.editable()) applyBlendMode(x, e.target.value); ed.canvas.requestRenderAll(); ed.commit() }}>
+        {BLEND_MODES.map((b) => <option key={b.id} value={b.id}>{b.label}</option>)}
+      </select>
+    </label>
   )
 }

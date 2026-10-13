@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react'
+import { Toaster } from 'sonner'
+import './components/theme'
 import { Home } from './components/Home'
 import { Editor } from './components/Editor'
 import { ShareView } from './components/Share'
@@ -21,6 +23,10 @@ function useHash() {
 }
 
 export default function App() {
+  return <><Routes /><Toaster position="bottom-right" richColors closeButton /></>
+}
+
+function Routes() {
   const hash = useHash()
   const m = hash.match(/^#\/d\/([\w-]+)/)
   if (m) return <Editor key={m[1]} docId={m[1]} />

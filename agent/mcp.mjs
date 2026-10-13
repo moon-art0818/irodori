@@ -146,7 +146,16 @@ async function loadImageSource(source) {
 
 // ---------- ツール共通 ----------
 const ok = (text) => ({ content: [{ type: 'text', text }] })
+// 画面に「AI 接続中」と出すための合図(失敗しても無視)
+let lastPing = 0
+const ping = () => {
+  if (Date.now() - lastPing < 30000) return
+  lastPing = Date.now()
+  const c = server.server.getClientVersion?.()
+  fetch(URL_BASE + '/local/agent-ping', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client: c ? `${c.name} ${c.version ?? ''}`.trim() : 'AI エージェント' }) }).catch(() => {})
+}
 const wrap = (fn) => async (args) => {
+  ping()
   try { return ok(await fn(args)) } catch (e) {
     return { isError: true, content: [{ type: 'text', text: e instanceof UserError ? e.message : `想定外のエラー: ${e?.stack ?? e}` }] }
   }
@@ -357,6 +366,44 @@ tool('list_fonts', '使えるフォントの一覧(これ以外は画面で正�
   const f = loadFonts()
   if (!f.length) fail('フォント一覧を読めませんでした(src/data/fonts.ts が見つかりません)。AGENTS.md の一覧を参照してください。')
   return f.map((x) => `${x.family}\t${x.label}\t${x.jp ? '日本語可' : '欧文のみ'}\t太さ ${x.weights.join('/')}`).join('\n')
+})
+
+// ---------- 人からの依頼(画面の「AI に依頼」)----------
+async function api(method, p, body) {
+  let res
+  try { res = await fetch(URL_BASE + p, { method, headers: { 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined, signal: AbortSignal.timeout(15000) }) }
+  catch (e) { fail(`irodori のサーバーに接続できません(${URL_BASE})。(${e.message})`) }
+  const j = await res.json().catch(() => ({}))
+  if (!res.ok) fail(j.error ?? `エラー(${res.status})`)
+  return j
+}
+const STATUS_JA = { queued: '待機中', working: '作業中', review: '確認待ち', done: '完了', redo: 'やり直し', cancelled: '取り消し' }
+
+tool('get_requests', '人が irodori の画面で書いた「AI への依頼」を取得する。既定は未処理(待機中・やり直し)のみ。最初に必ず呼ぶ。Get pending requests from the human.', {
+  status: z.enum(['pending', 'all']).default('pending'),
+}, async ({ status }) => {
+  const { requests } = await api('GET', '/local/requests')
+  const list = requests.filter((r) => status === 'all' || r.status === 'queued' || r.status === 'redo')
+  if (!list.length) return '未処理の依頼はありません。'
+  return list.map((r) => [`id=${r.id} [${STATUS_JA[r.status] ?? r.status}] ${r.designId ? `デザイン=${r.designId}${r.page ? ` ${r.page}ページ` : ''}` : '(新規)'}`, `依頼: ${r.text}`, r.status === 'redo' && r.note ? `やり直しの指示: ${r.note}` : ''].filter(Boolean).join('\n')).join('\n---\n')
+})
+
+tool('update_request', '依頼の状態を更新する。着手時は working、仕上げて人に見てほしいときは review(note に「何をしたか・人に確認してほしい事実(価格・日付・社名など)」を書く)。人の確認なしに done にしないこと。Update a request status.', {
+  id: z.string(), status: z.enum(['working', 'review', 'cancelled']), note: z.string().max(4000).default(''),
+  designId: z.string().optional().describe('作ったデザインの id(review のとき推奨)'),
+}, async ({ id, status, note, designId }) => {
+  const { request } = await api('PATCH', `/local/requests/${encodeURIComponent(id)}`, { status, note, by: 'agent', preview: designId })
+  return `依頼 ${request.id} を「${STATUS_JA[request.status]}」にしました。`
+})
+
+tool('check_design', 'デザインの品質を自動点検する(文字のはみ出し・ページ外・コントラスト不足・小さすぎる文字・余白・画像の解像度・フォント数)。review にする前に必ず実行し、指摘を直すこと。ブラウザで irodori を開いている必要あり。Lint the design.', {
+  id: id_,
+}, async ({ id }) => {
+  readDoc(id)
+  const r = await bridge({ action: 'check', id })
+  const issues = r?.issues ?? []
+  if (!issues.length) return '問題は見つかりませんでした。'
+  return issues.map((x) => `[${x.severity}] ${x.page}ページ #${x.index ?? '-'}: ${x.message}`).join('\n')
 })
 
 await server.connect(new StdioServerTransport())

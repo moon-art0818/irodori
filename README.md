@@ -134,4 +134,4 @@ npm run sync-slides  # slide-studio の取り込み直し(下記)
 
 ## ライセンス
 
-[MIT](LICENSE) © 2026 ryoya。依存ライブラリ等は [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+[MIT](LICENSE) © 2026 いと。依存ライブラリ等は [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。

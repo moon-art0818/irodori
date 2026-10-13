@@ -1,17 +1,17 @@
 // IndexedDB の最小ラッパー。使えない環境(プライベートモード等)ではメモリに逃がす
 const DB_NAME = 'irodori'
-const STORES = ['docs', 'assets', 'brand', 'versions'] as const
+const STORES = ['docs', 'assets', 'brand', 'versions', 'fonts'] as const
 type Store = (typeof STORES)[number]
 
 let dbp: Promise<IDBDatabase | null> | null = null
-const mem: Record<string, Map<string, any>> = { docs: new Map(), assets: new Map(), brand: new Map(), versions: new Map() }
+const mem: Record<string, Map<string, any>> = { docs: new Map(), assets: new Map(), brand: new Map(), versions: new Map(), fonts: new Map() }
 export let storageOk = true
 
 function open(): Promise<IDBDatabase | null> {
   if (dbp) return dbp
   dbp = new Promise((resolve) => {
     try {
-      const req = indexedDB.open(DB_NAME, 2)
+      const req = indexedDB.open(DB_NAME, 3)
       req.onupgradeneeded = () => {
         for (const s of STORES) if (!req.result.objectStoreNames.contains(s)) req.result.createObjectStore(s, { keyPath: 'id' })
       }

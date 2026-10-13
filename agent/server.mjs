@@ -83,21 +83,70 @@ function askBrowser(msg, timeoutMs = 60000) {
   })
 }
 
+// ---- AI への依頼(人が書く → AI が処理 → 人が確認)----
+const META = path.join(DIR, '.irodori')
+fs.mkdirSync(META, { recursive: true })
+const REQ_FILE = path.join(META, 'requests.json')
+const readReqs = () => { try { return JSON.parse(fs.readFileSync(REQ_FILE, 'utf8')) } catch { return [] } }
+const writeReqs = (list) => { const tmp = REQ_FILE + '.tmp'; fs.writeFileSync(tmp, JSON.stringify(list, null, 2)); fs.renameSync(tmp, REQ_FILE); send({ type: 'requests' }) }
+const REQ_STATUS = ['queued', 'working', 'review', 'done', 'redo', 'cancelled']
+
+// ---- AI エージェントの接続状態(MCP サーバーから定期的に届く合図)----
+let agent = { client: '', lastSeen: 0 }
+
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x')
   const p = decodeURIComponent(url.pathname)
+  let m
   try {
+    // DNS リバインディング対策: 自分自身(localhost / 127.0.0.1)宛て以外は受け付けない
+    const host = String(req.headers.host ?? '').replace(/:\d+$/, '')
+    if (!['127.0.0.1', 'localhost', '[::1]'].includes(host) && HOST !== '0.0.0.0') return json(res, 403, { error: 'localhost 以外からの接続は受け付けません' })
     // 他サイトからの操作を防ぐ(ブラウザからの変更系は同じオリジンのみ)
     const origin = req.headers.origin
     if (req.method !== 'GET' && origin && new URL(origin).host !== req.headers.host) return json(res, 403, { error: '別のサイトからの操作は受け付けません' })
 
     if (p === '/local/ping') return json(res, 200, { ok: true, dir: DIR, version: 1 })
+    if (p === '/local/agent-info') return json(res, 200, {
+      projectDir: ROOT, mcpPath: path.join(ROOT, 'agent', 'mcp.mjs'), designs: DIR, node: process.execPath,
+      url: `http://${req.headers.host}`, agentsDoc: path.join(ROOT, 'AGENTS.md'),
+    })
+    if (p === '/local/agent-ping' && req.method === 'POST') {
+      const b = JSON.parse((await readBody(req, 4096)).toString('utf8') || '{}')
+      const first = Date.now() - agent.lastSeen > 120000
+      agent = { client: String(b.client ?? 'AI エージェント').slice(0, 80), lastSeen: Date.now() }
+      if (first) send({ type: 'agent' })
+      return json(res, 200, { ok: true })
+    }
+    if (p === '/local/agent-status') return json(res, 200, { connected: Date.now() - agent.lastSeen < 120000, client: agent.client, lastSeen: agent.lastSeen })
+    if (p === '/local/requests' && req.method === 'GET') return json(res, 200, { requests: readReqs() })
+    if (p === '/local/requests' && req.method === 'POST') {
+      const b = JSON.parse((await readBody(req, 65536)).toString('utf8'))
+      const text = String(b.text ?? '').trim().slice(0, 4000)
+      if (!text) return json(res, 400, { error: '依頼の内容を書いてください' })
+      const r = { id: crypto.randomUUID().slice(0, 8), text, designId: b.designId ?? null, page: b.page ?? null, status: 'queued', note: '', history: [], createdAt: Date.now(), updatedAt: Date.now() }
+      writeReqs([...readReqs(), r])
+      return json(res, 200, { request: r })
+    }
+    m = p.match(/^\/local\/requests\/([\w-]+)$/)
+    if (m && req.method === 'PATCH') {
+      const b = JSON.parse((await readBody(req, 65536)).toString('utf8'))
+      const list = readReqs(); const r = list.find((x) => x.id === m[1])
+      if (!r) return json(res, 404, { error: '依頼が見つかりません' })
+      if (b.status && !REQ_STATUS.includes(b.status)) return json(res, 400, { error: '不正な状態です' })
+      if (b.status) { r.history.push({ at: Date.now(), from: r.status, to: b.status, by: b.by ?? '', note: b.note ?? '' }); r.status = b.status }
+      if (typeof b.note === 'string') r.note = b.note.slice(0, 4000)
+      if (typeof b.preview === 'string') r.preview = b.preview
+      r.updatedAt = Date.now()
+      writeReqs(list)
+      return json(res, 200, { request: r })
+    }
     if (p === '/local/events') {
       res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store', Connection: 'keep-alive' })
       res.write('retry: 2000\n\n'); clients.add(res); req.on('close', () => clients.delete(res)); return
     }
     if (p === '/local/designs' && req.method === 'GET') return json(res, 200, { docs: listDesigns() })
-    let m = p.match(/^\/local\/designs\/([^/]+)$/)
+    m = p.match(/^\/local\/designs\/([^/]+)$/)
     if (m) {
       const id = m[1]
       if (req.method === 'GET') { if (!fs.existsSync(fileOf(id))) return json(res, 404, { error: '見つかりません' }); return json(res, 200, { doc: readDesign(id) }) }

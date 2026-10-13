@@ -1,5 +1,5 @@
 import {
-  ActiveSelection, Canvas, FabricImage, FabricObject, Gradient, Group, Path, Point, Shadow, StaticCanvas, Textbox, cache, filters, util,
+  ActiveSelection, Canvas, FabricImage, PencilBrush, FabricObject, Gradient, Group, Path, Point, Shadow, StaticCanvas, Textbox, cache, filters, util,
 } from 'fabric'
 import { downscale, putAsset, resolveAssets, resolveAssetsAsDataURL } from './assets'
 import { fillFrame } from './elements'
@@ -414,6 +414,28 @@ export class EditorCore {
     ph.set({ originX: 'left', originY: 'top', left: o.left, top: o.top, angle: o.angle, fill: '#d4d4d8', name: 'フレーム' } as any)
     ;(ph as any).frame = (o as any).frame
     this.replaceObject(o, ph)
+  }
+
+  /** 手描き: kind=pen(ペン)/ marker(半透明の蛍光ペン)/ null(終了)。描いた線は1本ずつ取り消せる */
+  drawing: null | 'pen' | 'marker' = null
+  setDrawing(kind: null | 'pen' | 'marker', color = '#111827', width = 6) {
+    const c = this.canvas
+    this.drawing = kind
+    c.isDrawingMode = !!kind
+    if (kind) {
+      const b = new PencilBrush(c)
+      b.color = kind === 'marker' ? color + (color.length === 7 ? '66' : '') : color
+      b.width = kind === 'marker' ? width * 3 : width
+      b.decimate = 2
+      c.freeDrawingBrush = b
+      c.discardActiveObject()
+      if (!(c as any).__drawHook) {
+        ;(c as any).__drawHook = true
+        c.on('path:created', (e: any) => { (e.path as any).id = uid(); (e.path as any).name = this.drawing === 'marker' ? 'マーカー' : '手描き'; this.commit() })
+      }
+    }
+    c.requestRenderAll()
+    this.emit()
   }
 
   /** 縦書きテキストを追加 */

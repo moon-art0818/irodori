@@ -3,11 +3,23 @@ import { SHAPES } from './shapes'
 import { ensureFonts } from '../editor/core'
 
 // すべてこのアプリ用に作ったオリジナルのレイアウト
+export type TemplateBg = string | [string, string, number?]
+/** 2ページ目以降(1ページ目は bg/build) */
+export interface TemplatePage { bg: TemplateBg; build: () => FabricObject[]; label?: string }
 export interface Template {
   id: string; name: string; category: string; w: number; h: number
-  bg: string | [string, string, number?]
+  bg: TemplateBg
   build: () => FabricObject[]
+  /** 複数ページのテンプレート(2ページ目以降)。プレゼン10枚・カルーセル10枚など */
+  more?: TemplatePage[]
+  /** 検索用のキーワード(業種・用途) */
+  tags?: string[]
 }
+
+/** テンプレのページ数 */
+export const pageCount = (t: Template) => 1 + (t.more?.length ?? 0)
+/** n ページ目(0 始まり)の定義 */
+export const pageOf = (t: Template, i: number): TemplatePage => (i === 0 ? { bg: t.bg, build: t.build } : t.more![i - 1])
 
 const T = (text: string, x: number, y: number, w: number, size: number, o: Partial<{ weight: number; font: string; fill: string; align: string; lh: number; spacing: number; bg: string }> = {}) =>
   new Textbox(text, {
@@ -186,9 +198,10 @@ TEMPLATES.push(...MORE_TEMPLATES)
 export const TEMPLATE_CATEGORIES = [...new Set(TEMPLATES.map((t) => t.category))]
 
 /** テンプレをページ JSON にする。サイズが違う場合は比率を保って中央に収める */
-export function templateToJSON(t: Template, w = t.w, h = t.h): any {
+export function templateToJSON(t: Template, w = t.w, h = t.h, pageIndex = 0): any {
+  const pg = pageOf(t, Math.max(0, Math.min(pageCount(t) - 1, pageIndex)))
   const sc = new StaticCanvas(document.createElement('canvas'), { width: w, height: h, renderOnAddRemove: false })
-  const objs = t.build()
+  const objs = pg.build()
   const s = Math.min(w / t.w, h / t.h)
   const ox = (w - t.w * s) / 2, oy = (h - t.h * s) / 2
   for (const o of objs) {
@@ -196,15 +209,20 @@ export function templateToJSON(t: Template, w = t.w, h = t.h): any {
     if (s !== 1 || ox || oy) o.set({ left: o.left * s + ox, top: o.top * s + oy, scaleX: (o.scaleX ?? 1) * s, scaleY: (o.scaleY ?? 1) * s })
     sc.add(o)
   }
-  if (typeof t.bg === 'string') sc.backgroundColor = t.bg
+  if (typeof pg.bg === 'string') sc.backgroundColor = pg.bg
   else {
-    const [a, b, angle = 90] = t.bg
+    const [a, b, angle = 90] = pg.bg
     const rad = (angle * Math.PI) / 180, dx = Math.cos(rad) / 2, dy = Math.sin(rad) / 2
     sc.backgroundColor = new Gradient({ type: 'linear', gradientUnits: 'pixels', coords: { x1: w * (0.5 - dx), y1: h * (0.5 - dy), x2: w * (0.5 + dx), y2: h * (0.5 + dy) }, colorStops: [{ offset: 0, color: a }, { offset: 1, color: b }] })
   }
   const json = sc.toObject(['id', 'name', 'assetId', 'locked'])
   sc.dispose()
   return json
+}
+
+/** 全ページの JSON */
+export function templatePagesJSON(t: Template, w = t.w, h = t.h): any[] {
+  return Array.from({ length: pageCount(t) }, (_, i) => templateToJSON(t, w, h, i))
 }
 
 export async function preloadTemplateFonts(t: Template) { await ensureFonts(templateToJSON(t)) }

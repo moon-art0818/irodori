@@ -34,7 +34,7 @@ export function makeFileRepo(Conflict: new () => Error, Gone: new () => Error): 
 }
 
 // ---- フォルダの変更通知 ----
-type Msg = { type: 'changed' | 'removed'; id: string; updatedAt?: number } | { type: 'bridge'; reqId: string; [k: string]: any }
+type Msg = { type: 'changed' | 'removed'; id: string; updatedAt?: number } | { type: 'requests' | 'agent' } | { type: 'bridge'; reqId: string; [k: string]: any }
 const subs = new Set<(m: Msg) => void>()
 let es: EventSource | null = null
 export function onLocalEvent(f: (m: Msg) => void) {
@@ -56,3 +56,13 @@ export function startBridge(handlers: Record<string, (m: any) => Promise<any>>) 
     try { reply({ result: await h(m) }) } catch (e: any) { reply({ error: e?.message ?? String(e) }) }
   })
 }
+
+// ---- AI への依頼(人が書く → AI が処理 → 人が確認)----
+export interface AgentRequest { id: string; text: string; designId: string | null; page: number | null; status: 'queued' | 'working' | 'review' | 'done' | 'redo' | 'cancelled'; note: string; preview?: string; createdAt: number; updatedAt: number; history: { at: number; from: string; to: string; by: string; note: string }[] }
+export const REQUEST_LABEL: Record<AgentRequest['status'], string> = { queued: '待機中', working: 'AI が作業中', review: '確認待ち', done: '完了', redo: 'やり直し', cancelled: '取り消し' }
+export const listRequests = () => call<{ requests: AgentRequest[] }>('GET', '/local/requests').then((r) => r.requests)
+export const addRequest = (text: string, designId?: string | null, page?: number | null) => call<{ request: AgentRequest }>('POST', '/local/requests', { text, designId: designId ?? null, page: page ?? null })
+export const updateRequest = (id: string, status: AgentRequest['status'], note = '') => call('PATCH', `/local/requests/${id}`, { status, note, by: 'human' })
+export interface AgentInfo { projectDir: string; mcpPath: string; designs: string; node: string; url: string; agentsDoc: string }
+export const agentInfo = () => call<AgentInfo>('GET', '/local/agent-info')
+export const agentStatus = () => call<{ connected: boolean; client: string; lastSeen: number }>('GET', '/local/agent-status')

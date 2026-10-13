@@ -17,6 +17,10 @@ import { ShareButton } from './Share'
 import { migrateOne } from './Account'
 import { DeckEditor } from './DeckEditor'
 import { VTextEditor } from './VTextEditor'
+import { RequestBoard } from './AgentConnect'
+import { DesignTools } from './DesignTools'
+import { isLocal } from '../api/local'
+import { Bot } from 'lucide-react'
 import type { VText } from '../editor/vtext'
 import { initSession } from '../api/session'
 import { onLocalEvent } from '../api/local'
@@ -86,6 +90,9 @@ export function Editor({ docId }: { docId: string }) {
       maybeSnapshot(d).catch(() => {}) // 開いた時点の状態を履歴に残す
     }).catch((e) => setLoadErr(e?.message ?? String(e)))
   }, [docId])
+
+  // 画面が非表示の間は描画が止まるので、表示に戻ったら描き直す
+  useEffect(() => { const f = () => { if (document.visibilityState === 'visible') edRef.current?.canvas.requestRenderAll() }; document.addEventListener('visibilitychange', f); return () => document.removeEventListener('visibilitychange', f) }, [])
 
   // ブランドキットを読み込んで色候補に反映
   useEffect(() => { getBrand().then(bump); return onBrandChange(bump) }, [bump])
@@ -445,7 +452,9 @@ export function Editor({ docId }: { docId: string }) {
         </span>
         <div className="tb-spacer" />
         <button className="tb-btn" title="サイズを変更(マジックリサイズ)" onClick={() => { syncDoc(); flush(); setModal('resize') }}><Scaling size={18} /><span className="hide-sm">サイズ変更</span></button>
+        {ed && <DesignTools ed={ed} getDoc={syncDoc} gotoPage={gotoPage} reload={() => { const d = docRef.current!; const p = d.pages[pageIdx]; persist(); ed.replaceCurrent(p.json); d.pages.forEach((x) => refreshThumb(x.id)) }} />}
         <AnimateButton getDoc={syncDoc} pageIdx={pageIdx} onChange={persist} />
+        {isLocal() && <AskAIButton docId={doc.id} page={pageIdx + 1} />}
         <button className="tb-btn" title="バージョン履歴" onClick={() => { syncDoc(); flush(); setModal('versions') }}><History size={18} /></button>
         <button className="tb-btn" title="プレゼンテーション(全画面)" onClick={() => { syncDoc(); setPresenting(true) }}><Play size={18} /><span className="hide-sm">プレゼン</span></button>
         <ShareButton docId={doc.id} initialShareId={(doc as any).shareId ?? null} beforeShare={async () => { syncDoc(); dirty.current = true; await flush() }} />
@@ -509,6 +518,17 @@ function AnimateButton({ getDoc, pageIdx, onChange }: { getDoc: () => DesignDoc;
     <div className="pop-wrap" ref={ref}>
       <button className={'tb-btn' + (open ? ' on' : '')} title="アニメーション・動画" onClick={() => setOpen(!open)}><Clapperboard size={18} /><span className="hide-sm">アニメ</span></button>
       {open && <div className="popover right anim-pop"><AnimatePanel getDoc={getDoc} pageIdx={pageIdx} onChange={onChange} /></div>}
+    </div>
+  )
+}
+
+/** エディタ上部: このデザインについて AI に頼む(ローカル版のみ) */
+function AskAIButton({ docId, page }: { docId: string; page: number }) {
+  const { open, setOpen, ref } = usePopover()
+  return (
+    <div className="pop-wrap" ref={ref}>
+      <button className={'tb-btn' + (open ? ' on' : '')} title="このデザインについて AI エージェントに依頼" onClick={() => setOpen(!open)}><Bot size={18} /><span className="hide-sm">AI に依頼</span></button>
+      {open && <div className="popover right ask-pop"><RequestBoard designId={docId} page={page} compact /></div>}
     </div>
   )
 }
