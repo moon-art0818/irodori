@@ -191,7 +191,8 @@ const wpHF = (n: number, sec: string): FabricObject[] => [
   T('バックオフィス自動化の進め方', 540, 1642, 600, 22, { weight: 500, fill: WP.mid, align: 'right' }),
 ]
 const wpHead = (no: string, ja: string, y = 140): FabricObject[] => [
-  T(no, 100, y, 400, 24, { font: MONT, weight: 700, fill: WP.yel, spacing: 300, bg: WP.teal }),
+  R(100, y - 6, no.length * 25 + 28, 36, WP.teal),
+  T(no, 100, y, no.length * 25 + 28, 24, { font: MONT, weight: 700, fill: WP.yel, spacing: 300, align: 'center' }),
   T(ja, 100, y + 50, 1040, 66, { font: ZK, weight: 900, fill: WP.deep }),
 ]
 const wpPoint = (x: number, y: number, t: string) => [
@@ -331,7 +332,7 @@ const WHITEPAPER = mkSet('pr-whitepaper', 'ホワイトペーパー(業務自動
     ...wpHead('EPILOGUE', 'まとめと次の一歩'),
     ...['見えない仕事を棚卸しして、数字で把握する', '転記・確認の多い業務から、小さく試す', '手順書と見直しの場で、運用を仕組みにする'].flatMap((t, i) => [
       R(100, 340 + i * 150, 1040, 120, '#ffffff', 6),
-      T('POINT ' + (i + 1), 140, 380 + i * 150, 200, 24, { font: MONT, weight: 700, fill: WP.yel, spacing: 150 }),
+      T('POINT ' + (i + 1), 140, 380 + i * 150, 200, 24, { font: MONT, weight: 700, fill: '#a16207', spacing: 150 }),
       T(t, 340, 380 + i * 150, 780, 30, { weight: 700, fill: WP.deep }),
     ]),
     R(100, 830, 1040, 700, WP.teal, 6),
@@ -838,7 +839,7 @@ const FLYER = mkSet('pr-flyer-season', '季節のチラシ連作(洋菓子店)',
     Ci(1000, 280, 420, '#f7d54a'), Ci(1040, 330, 300, '#fbe58a'),
     T('SUMMER', 80, 100, 800, 130, { font: MONT, weight: 900, fill: '#ffffff', spacing: 100 }),
     T('冷たい', 80, 420, 700, 160, { font: DELA, weight: 400, fill: '#073d4d' }),
-    T('かき氷はじめました', 80, 590, 1100, 110, { font: DELA, weight: 400, fill: '#ffffff' }),
+    T('かき氷はじめました', 80, 590, 1100, 110, { font: DELA, weight: 400, fill: '#073d4d' }),
     ...PH(80, 800, 640, 580, 20, '#8fdcec'),
     ...[['いちごミルク', '780円'], ['宇治金時', '850円'], ['マンゴー', '950円']].flatMap(([a, p], i) => [
       R(760, 830 + i * 190, 400, 160, '#ffffff', 16),

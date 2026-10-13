@@ -108,8 +108,8 @@ export const TEMPLATES: Template[] = [
   { id: 'yt-vlog', name: 'Vlog', category: 'YouTube サムネイル', w: 1280, h: 720, bg: ['#ff9a9e', '#fecfef', 0],
     build: () => [
       R(60, 60, 1160, 600, '', 30, { stroke: '#ffffff', strokeWidth: 10 }),
-      T('vlog', 110, 90, 400, 120, { font: 'Pacifico', weight: 400, fill: '#ffffff' }),
-      T('週末ひとり旅\nin 京都', 110, 330, 1000, 120, { font: 'M PLUS Rounded 1c', weight: 900, fill: '#ffffff', lh: 1.15 }),
+      T('vlog', 110, 90, 400, 120, { font: 'Pacifico', weight: 400, fill: '#831843' }),
+      T('週末ひとり旅\nin 京都', 110, 330, 1000, 120, { font: 'M PLUS Rounded 1c', weight: 900, fill: '#831843', lh: 1.15 }),
     ] },
   // ---------- スライド ----------
   { id: 'slide-title', name: '表紙', category: 'プレゼン', w: 1920, h: 1080, bg: '#ffffff',
@@ -186,7 +186,7 @@ export const TEMPLATES: Template[] = [
     build: () => ['予約する', 'メニュー', 'クーポン', 'アクセス', 'よくある質問', 'お問い合わせ'].flatMap((t, i) => {
       const x = (i % 3) * 833, y = Math.floor(i / 3) * 843
       return [
-        R(x + 10, y + 10, 813, 823, ['#06c755', '#34d399', '#fbbf24', '#60a5fa', '#a78bfa', '#f472b6'][i], 20),
+        R(x + 10, y + 10, 813, 823, ['#06c755', '#059669', '#d97706', '#60a5fa', '#a78bfa', '#f472b6'][i], 20),
         T(t, x + 10, y + 360, 813, 100, { fill: '#ffffff', align: 'center', weight: 900 }),
       ]
     }) },

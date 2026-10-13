@@ -26,7 +26,7 @@ export const SLIDE_TEMPLATES: Template[] = [
       T('AGENDA', 120, 160, 440, 44, { font: 'Montserrat', weight: 700, fill: A.cy, spacing: 500 }),
       T('本日の\nお話', 120, 240, 440, 100, { weight: 900, fill: '#ffffff', lh: 1.2 }),
       ...['課題と背景', 'プロダクト概要', '導入事例', '料金とサポート'].flatMap((t, i) => [
-        T('0' + (i + 1), 780, 190 + i * 200, 160, 80, { font: 'Montserrat', weight: 900, fill: A.cy }),
+        T('0' + (i + 1), 780, 190 + i * 200, 160, 80, { font: 'Montserrat', weight: 900, fill: '#0e7490' }),
         T(t, 980, 205 + i * 200, 800, 60, { fill: A.ink }),
         R(780, 320 + i * 200, 1020, 2, '#e2e8f0'),
       ]),

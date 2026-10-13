@@ -5,7 +5,7 @@ const C = 'LINE'
 
 export const LINE_TEMPLATES: Template[] = [
   { id: 'lnx-salon4', name: 'サロン 4分割', category: C, w: 2500, h: 1686, bg: '#f7ede8',
-    build: () => [['ご予約', 'RESERVE', '#c98b76'], ['メニュー', 'MENU', '#e0b8a8'], ['スタイル', 'STYLE', '#e0b8a8'], ['クーポン', 'COUPON', '#c98b76']].flatMap(([t, e, c], i) => {
+    build: () => [['ご予約', 'RESERVE', '#c98b76'], ['メニュー', 'MENU', '#a0604a'], ['スタイル', 'STYLE', '#a0604a'], ['クーポン', 'COUPON', '#c98b76']].flatMap(([t, e, c], i) => {
       const x = (i % 2) * 1250, y = Math.floor(i / 2) * 843
       return [
         R(x + 40, y + 40, 1170, 763, c, 40),

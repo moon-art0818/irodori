@@ -429,7 +429,7 @@ const BLOG_POP: TemplatePage[] = [
   P('比較', PB.sun, () => [
     ...pbChip('比較', 72, 56, PB.navy, PB.sun),
     T('無料 vs 有料', 72, 150, 1056, 120, { font: MOCHI, weight: 400, fill: PB.navy }),
-    T('どっちを選ぶ?', 72, 290, 1056, 120, { font: MOCHI, weight: 400, fill: PB.white }),
+    T('どっちを選ぶ?', 72, 290, 1056, 120, { font: MOCHI, weight: 400, fill: PB.navy }),
     R(72, 470, 300, 80, PB.navy, 40), T('無料プラン', 72, 490, 300, 40, { font: SUB, weight: 900, fill: PB.sun, align: 'center' }),
     R(396, 470, 300, 80, PB.white, 40), T('有料プラン', 396, 490, 300, 40, { font: SUB, weight: 900, fill: PB.navy, align: 'center' }),
   ]),

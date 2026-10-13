@@ -465,7 +465,7 @@ const EVENT = carousel('sn-event', 'イベント告知 マルシェ開催', ['�
     ...kick(HE, 'ACCESS', M, 100),
     hd(HE, 'アクセス', M, 170, CW, 84),
     ...PH(M, 330, CW, 400, 36, '#dfe9e4'),
-    T('MAP', M, 500, CW, 50, { font: 'Montserrat', weight: 900, fill: '#b3c9c0', align: 'center', spacing: 400, lh: 1 }),
+    T('MAP', M, 500, CW, 50, { font: 'Montserrat', weight: 900, fill: '#6b8a7f', align: 'center', spacing: 400, lh: 1 }),
     ...[['電車', 'みなと駅から徒歩8分'], ['バス', '「みなと公園前」下車すぐ'], ['車', '臨時駐車場(約200台・無料)']].flatMap(([k, v], i) => [
       ...pill(k, M, 790 + i * 128, 150, 26, HE.main, '#ffffff'),
       T(v, 270, 800 + i * 128, 720, 34, { font: HE.bf, weight: 700, fill: HE.ink, lh: 1.2 }),
@@ -561,7 +561,7 @@ const JOBS = carousel('sn-recruit', '求人・採用 スタッフ募集', ['求�
     ...[['職種', 'ホールスタッフ'], ['勤務地', '市内3店舗のいずれか'], ['時間', '9:00〜18:00 のうち4時間〜'], ['日数', '週2日〜(応相談)'], ['資格', '未経験歓迎・高校生不可']].flatMap(([k, v], i) => {
       const y = 330 + i * 160
       return [R(M, y + 138, CW, 2, HF.line),
-        T(k, M, y + 40, 200, 32, { font: HF.bf, weight: 900, fill: HF.acc, lh: 1.2 }),
+        T(k, M, y + 40, 200, 32, { font: HF.bf, weight: 900, fill: '#9a5f08', lh: 1.2 }),
         T(v, 300, y + 40, 700, 32, { font: HF.bf, weight: 700, fill: HF.ink, lh: 1.3 })]
     }),
   ] },

@@ -16,7 +16,7 @@ export const YOUTUBE_TEMPLATES: Template[] = [
     build: () => [
       S('lightning', 900, 80, 260, '#facc15'),
       T('#12', 80, 70, 300, 120, { font: 'Bebas Neue', weight: 400, fill: '#c4b5fd' }),
-      T('ついに\nラスボス\n撃破!?', 80, 200, 800, 150, { font: 'Dela Gothic One', weight: 400, fill: '#ffffff', lh: 1.1 }),
+      T('ついに\nラスボス\n撃破!?', 80, 180, 800, 120, { font: 'Dela Gothic One', weight: 400, fill: '#ffffff', lh: 1.05 }),
       R(80, 600, 420, 70, '#facc15', 12),
       T('完全ノーダメ挑戦', 80, 612, 420, 40, { fill: '#1e1b4b', align: 'center' }),
     ] },
@@ -26,7 +26,8 @@ export const YOUTUBE_TEMPLATES: Template[] = [
       ...PH(710, 110, 500, 500, 250, '#fed7aa'),
       T('材料3つ!', 80, 100, 560, 64, { weight: 900, fill: '#ea580c' }),
       T('とろける\n絶品\nプリン', 80, 190, 600, 130, { font: 'Mochiy Pop One', weight: 400, fill: '#431407', lh: 1.15 }),
-      T('レンジで5分', 80, 600, 500, 52, { weight: 900, fill: '#ffffff', bg: '#ea580c' }),
+      R(80, 592, 340, 80, '#ea580c', 12),
+      T('レンジで5分', 80, 606, 340, 52, { weight: 900, fill: '#ffffff', align: 'center' }),
     ] },
   { id: 'ytx-review', name: '商品レビュー', category: C, w: 1280, h: 720, bg: '#f1f5f9',
     build: () => [
@@ -57,14 +58,16 @@ export const YOUTUBE_TEMPLATES: Template[] = [
       S('check', 120, 130, 120, '#16a34a'),
       T('東大生の', 280, 140, 880, 64, { weight: 900, fill: '#16a34a' }),
       T('最強の\n暗記術', 120, 270, 780, 160, { font: 'Dela Gothic One', weight: 400, fill: '#14532d', lh: 1.1 }),
-      T('たった3ステップ', 120, 540, 700, 56, { weight: 900, fill: '#ffffff', bg: '#16a34a' }),
+      R(120, 530, 440, 84, '#16a34a', 12),
+      T('たった3ステップ', 120, 544, 440, 56, { weight: 900, fill: '#ffffff', align: 'center' }),
       S('star5', 960, 360, 190, '#fbbf24'),
     ] },
   { id: 'ytx-travel', name: '旅行 まとめ', category: C, w: 1280, h: 720, bg: ['#0ea5e9', '#e0f2fe', 90],
     build: () => [
       Ci(1000, 140, 90, '#fde047'),
-      T('Okinawa', 80, 80, 800, 150, { font: 'Pacifico', weight: 400, fill: '#ffffff' }),
+      T('Okinawa', 80, 80, 800, 150, { font: 'Pacifico', weight: 400, fill: '#0c4a6e' }),
       T('2泊3日\n総額5万円台', 80, 290, 900, 130, { font: 'M PLUS Rounded 1c', weight: 900, fill: '#0c4a6e', lh: 1.15 }),
-      T('完全プラン公開', 80, 580, 600, 56, { weight: 900, fill: '#ffffff', bg: '#0c4a6e' }),
+      R(80, 570, 440, 84, '#0c4a6e', 12),
+      T('完全プラン公開', 80, 584, 440, 56, { weight: 900, fill: '#ffffff', align: 'center' }),
     ] },
 ]
