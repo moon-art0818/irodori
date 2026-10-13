@@ -123,6 +123,10 @@ input[type=color] { width: 34px; height: 28px; border: 1px solid var(--line); bo
 .topnav { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 10px; height: 56px; padding: 0 28px; background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); }
 .cmd-trigger { flex: 1; max-width: 520px; display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 10px; border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--surface); color: var(--text-3); text-align: left; }
 .cmd-trigger:hover { border-color: var(--line-strong); }
+.cmd-trigger { min-width: 0; }
+.cmd-trigger svg { flex: none; }
+.cmd-label { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+@media (max-width: 520px) { .cmd-trigger { flex: 0 0 auto; } .cmd-label, .cmd-trigger kbd { display: none; } }
 .cmd-trigger kbd { margin-left: auto; border: 1px solid var(--line); border-radius: 4px; padding: 2px 5px; }
 .page { padding: 28px 28px 64px; max-width: 1440px; }
 .page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 18px; }

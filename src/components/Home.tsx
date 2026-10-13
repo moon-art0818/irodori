@@ -89,7 +89,7 @@ export function Home() {
       </aside>
       <main className="main">
         <div className="topnav">
-          <button className="cmd-trigger" onClick={openPalette}><Search size={15} />テンプレート・サイズ・操作を検索<kbd>⌘K</kbd></button>
+          <button className="cmd-trigger" onClick={openPalette} aria-label="検索(⌘K)"><Search size={15} /><span className="cmd-label">テンプレート・サイズ・操作を検索</span><kbd>⌘K</kbd></button>
           <div className="tb-spacer" />
           <button className="primary-btn" onClick={() => setView('home')}><Plus size={16} />デザインを作成</button>
         </div>
