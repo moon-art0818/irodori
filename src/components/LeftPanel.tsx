@@ -15,7 +15,7 @@ import { renderPage } from '../editor/core'
 import { idbAll } from '../editor/idb'
 import { getAssetURL } from '../editor/assets'
 import { SHAPES } from '../data/shapes'
-import { TEMPLATES, TEMPLATE_CATEGORIES, templateToJSON, type Template } from '../data/templates'
+import { TEMPLATES, TEMPLATE_CATEGORIES, templateToJSON, pageCount, pageOf, type Template } from '../data/templates'
 import { FONTS } from '../data/fonts'
 import { GRADIENTS, PALETTE } from './ColorPicker'
 
@@ -33,20 +33,22 @@ export const TABS: [Tab, string, React.ReactNode][] = [
 ]
 
 const thumbCache = new Map<string, string>()
-export function TemplateThumb({ t, width = 160 }: { t: Template; width?: number }) {
-  const [url, setUrl] = useState(thumbCache.get(t.id))
+export function TemplateThumb({ t, width = 160, page = 0 }: { t: Template; width?: number; page?: number }) {
+  const key = t.id + ':' + page
+  const [url, setUrl] = useState(thumbCache.get(key))
   useEffect(() => {
     if (url) return
     let alive = true
-    renderPage(templateToJSON(t), t.w, t.h, { multiplier: 320 / t.w, format: 'jpeg', quality: 0.85 }).then((u) => {
-      thumbCache.set(t.id, u); if (alive) setUrl(u)
-    })
+    renderPage(templateToJSON(t, t.w, t.h, page), t.w, t.h, { multiplier: 320 / t.w, format: 'jpeg', quality: 0.85 }).then((u) => {
+      thumbCache.set(key, u); if (alive) setUrl(u)
+    }).catch(() => {})
     return () => { alive = false }
-  }, [t, url])
+  }, [t, url, page, key])
   return url ? <img src={url} alt={t.name} style={{ width, aspectRatio: `${t.w}/${t.h}` }} /> : <div className="thumb-ph" style={{ width, aspectRatio: `${t.w}/${t.h}` }} />
 }
 
-export function LeftPanel({ tab, ed, onApplyTemplate, version }: { tab: Tab; ed: EditorCore; onApplyTemplate: (t: Template, mode?: 'replace' | 'new') => void; version: number }) {
+export type ApplyMode = 'replace' | 'new' | 'all'
+export function LeftPanel({ tab, ed, onApplyTemplate, version }: { tab: Tab; ed: EditorCore; onApplyTemplate: (t: Template, mode?: ApplyMode, page?: number) => void; version: number }) {
   return (
     <div className="side-panel">
       {tab === 'templates' && <TemplatesTab ed={ed} onApply={onApplyTemplate} />}
@@ -62,23 +64,43 @@ export function LeftPanel({ tab, ed, onApplyTemplate, version }: { tab: Tab; ed:
   )
 }
 
-function TemplatesTab({ ed, onApply }: { ed: EditorCore; onApply: (t: Template, mode?: 'replace' | 'new') => void }) {
+function TemplatesTab({ ed, onApply }: { ed: EditorCore; onApply: (t: Template, mode?: ApplyMode, page?: number) => void }) {
   const [q, setQ] = useState('')
+  const [open, setOpen] = useState<Template | null>(null)
   const ratio = ed.width / ed.height
   // 今のページと縦横比が近いものを先に
   const list = useMemo(() => [...TEMPLATES]
-    .filter((t) => !q || (t.name + t.category).includes(q))
+    .filter((t) => !q || (t.name + t.category + (t.tags ?? []).join(' ')).includes(q))
     .sort((a, b) => Math.abs(a.w / a.h - ratio) - Math.abs(b.w / b.h - ratio)), [q, ratio])
+  if (open) {
+    // 複数ページのテンプレ: ページを選んで適用(Canva と同じ流れ)
+    return (
+      <>
+        <button className="link-btn" onClick={() => setOpen(null)}>← テンプレート一覧</button>
+        <div className="panel-title" style={{ marginTop: 8 }}>{open.name}<small className="hint">{pageCount(open)} ページ</small></div>
+        <button className="primary-btn wide" onClick={() => onApply(open, 'all')}><Plus size={14} />全 {pageCount(open)} ページを追加</button>
+        <p className="hint">ページをクリックすると今のページに適用(取り消し可)、「+」で新しいページとして追加します。</p>
+        <div className="tpl-grid">
+          {Array.from({ length: pageCount(open) }, (_, i) => (
+            <div key={i} className="tpl-card-wrap">
+              <button className="tpl-card" onClick={() => onApply(open, 'replace', i)}><div className="tpl-media"><TemplateThumb t={open} page={i} width={140} /></div><span className="t-meta">{i + 1}. {pageOf(open, i).label ?? ''}</span></button>
+              <button className="tpl-add" title="新しいページとして追加" onClick={() => onApply(open, 'new', i)}><Plus size={14} /></button>
+            </div>
+          ))}
+        </div>
+      </>
+    )
+  }
   return (
     <>
-      <input className="search" placeholder="テンプレートを検索" value={q} onChange={(e) => setQ(e.target.value)} />
-      <p className="hint">クリックで今のページに適用(取り消し可)。右上の「+」で新しいページとして追加。サイズが違うときは中央に収めます。</p>
+      <input className="search" placeholder="テンプレートを検索(業種・用途)" value={q} onChange={(e) => setQ(e.target.value)} />
+      <p className="hint">クリックで今のページに適用(取り消し可)。複数ページのテンプレはページを選べます。「+」で新しいページとして追加。</p>
       <div className="tpl-grid">
         {list.map((t) => (
           <div key={t.id} className="tpl-card-wrap">
-            <button className="tpl-card" onClick={() => onApply(t)} title={`${t.category} / ${t.name}`}>
-              <TemplateThumb t={t} width={140} />
-              <span>{t.name}</span>
+            <button className="tpl-card" onClick={() => (pageCount(t) > 1 ? setOpen(t) : onApply(t))} title={`${t.category} / ${t.name}`}>
+              <div className="tpl-media"><TemplateThumb t={t} width={140} />{pageCount(t) > 1 && <span className="tpl-badge">{pageCount(t)}p</span>}</div>
+              <span className="t-name">{t.name}</span>
             </button>
             <button className="tpl-add" title="新しいページとして追加" onClick={() => onApply(t, 'new')}><Plus size={14} /></button>
           </div>

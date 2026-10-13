@@ -1,0 +1,10 @@
+{
+  "name": "irodori",
+  "short_name": "irodori",
+  "description": "ブラウザで動く OSS デザインツール",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f5f6f8",
+  "theme_color": "#ffffff",
+  "icons": [{ "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

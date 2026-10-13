@@ -6,7 +6,8 @@ import { storageOk } from '../editor/idb'
 import type { DesignDoc } from '../editor/types'
 
 const bc = new BroadcastChannel('irodori-docs')
-import { templateToJSON, type Template } from '../data/templates'
+import { templateToJSON, templatePagesJSON, type Template } from '../data/templates'
+import { toast } from 'sonner'
 import { LeftPanel, TABS, type Tab } from './LeftPanel'
 import { Toolbar } from './Toolbar'
 import { DownloadButton, exportDoc } from './Download'
@@ -381,9 +382,15 @@ export function Editor({ docId }: { docId: string }) {
     return j
   })
 
-  const applyTemplate = (t: Template, mode: 'replace' | 'new' = 'replace') => {
+  const applyTemplate = (t: Template, mode: 'replace' | 'new' | 'all' = 'replace', page = 0) => {
     const d = docRef.current!
-    const json = templateToJSON(t, d.width, d.height)
+    if (mode === 'all') {
+      const all = templatePagesJSON(t, d.width, d.height)
+      mutatePages((dd) => { dd.pages.splice(pageIdx + 1, 0, ...all.map((json, i) => ({ id: newPageId() + i, json }))); return pageIdx + 1 })
+      toast.success(`${all.length} ページを追加しました`)
+      return
+    }
+    const json = templateToJSON(t, d.width, d.height, page)
     if (mode === 'new') mutatePages((dd) => { dd.pages.splice(pageIdx + 1, 0, { id: newPageId(), json }); return pageIdx + 1 })
     else edRef.current!.replaceCurrent(json)
   }

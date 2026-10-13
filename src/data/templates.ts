@@ -193,6 +193,9 @@ export const TEMPLATES: Template[] = [
 ]
 
 import { MORE_TEMPLATES } from './templates/index'
+import { TEMPLATE_SETS } from './templateSets/index'
+// 複数ページのセットを先頭に(おすすめに出す)、その後に1枚ものを並べる
+TEMPLATES.unshift(...TEMPLATE_SETS)
 TEMPLATES.push(...MORE_TEMPLATES)
 
 export const TEMPLATE_CATEGORIES = [...new Set(TEMPLATES.map((t) => t.category))]

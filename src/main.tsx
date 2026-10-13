@@ -11,3 +11,6 @@ document.head.appendChild(link)
 
 // fabric の Canvas は二重初期化に弱いため StrictMode は使わない
 createRoot(document.getElementById('root')!).render(<App />)
+
+// オフライン対応(本番ビルドのみ。開発中は登録しない)
+if (import.meta.env.PROD && 'serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}))

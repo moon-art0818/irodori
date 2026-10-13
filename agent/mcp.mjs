@@ -242,16 +242,17 @@ tool('list_templates', 'テンプレの一覧(id・名前・分類・サイズ)�
   query: z.string().optional().describe('絞り込み語(任意)'),
 }, async ({ query }) => {
   const t = await bridge({ action: 'templates', query: query ?? '' })
-  return t.length ? t.map((x) => `${x.id}\t${x.category}\t${x.name}\t${x.width}x${x.height}`).join('\n') : '該当するテンプレはありません。'
+  return t.length ? t.map((x) => `${x.id}\t${x.category}\t${x.name}\t${x.width}x${x.height}\t${x.pages ?? 1}ページ`).join('\n') : '該当するテンプレはありません。'
 })
 
-tool('apply_template', 'テンプレをデザインに適用する。mode=replace は指定ページを置き換え、append はページを追加。ブラウザが必要。Apply a template.', {
+tool('apply_template', 'テンプレをデザインに適用する。mode=replace は指定ページをテンプレの templatePage ページ目で置き換え、append はテンプレの templatePage ページ目を追加、append-all はテンプレの全ページを追加(複数ページのテンプレ向け)。ブラウザが必要。Apply a template.', {
   id: id_, templateId: z.string().describe('list_templates の id'),
-  mode: z.enum(['replace', 'append']).default('append'), page: page_,
-}, async ({ id, templateId, mode, page }) => {
+  mode: z.enum(['replace', 'append', 'append-all']).default('append'), page: page_,
+  templatePage: z.number().int().min(1).default(1).describe('テンプレの何ページ目を使うか(1 始まり。list_templates の pages まで)'),
+}, async ({ id, templateId, mode, page, templatePage }) => {
   const doc = readDoc(id)
   if (mode === 'replace') pageOf(doc, page)
-  const r = await bridge({ action: 'template', id, templateId, mode, page })
+  const r = await bridge({ action: 'template', id, templateId, mode, page, templatePage })
   return `適用しました(${mode})。現在 ${r?.pages ?? '?'} ページ。`
 })
 

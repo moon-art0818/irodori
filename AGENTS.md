@@ -104,7 +104,7 @@ JSON を手で書かずに、道具として呼べます。環境変数:
 | `IRODORI_DESIGNS` | `./designs`(起動したフォルダ基準) | デザインのフォルダ。**server.mjs と同じ場所にすること** |
 | `IRODORI_URL` | `http://127.0.0.1:4600` | server.mjs の URL(描画・テンプレ・サイズ用) |
 
-ツール: `list_designs` / `get_design` / `create_design` / `list_sizes` / `list_templates` / `apply_template` / `add_text`(`vertical: true` で縦書き)/ `add_shape`(rect・roundrect・circle・ellipse・line)/ `add_image`(パスか https URL。15MB まで・画像のみ)/ `update_object` / `delete_object` / `set_background` / `add_page` / `export_design` / `list_fonts`。ページ番号は 1 始まり、オブジェクト番号は 0 始まり(`get_design` で確認)。
+ツール: `get_requests` / `update_request` / `check_design` / `list_designs` / `get_design` / `create_design` / `list_sizes` / `list_templates` / `apply_template` / `add_text`(`vertical: true` で縦書き)/ `add_shape`(rect・roundrect・circle・ellipse・line)/ `add_image`(パスか https URL。15MB まで・画像のみ)/ `update_object` / `delete_object` / `set_background` / `add_page` / `export_design` / `list_fonts`。ページ番号は 1 始まり、オブジェクト番号は 0 始まり(`get_design` で確認)。
 
 先に server.mjs を起動してブラウザで開いてから、各エージェントに登録します。パスは自分の環境の絶対パスに置き換えてください(以下 `/path/to/irodori`)。
 
@@ -156,6 +156,31 @@ claude mcp add --transport stdio --env IRODORI_DESIGNS=/path/to/irodori/designs 
 - 上の 3 つの設定形式は公式ドキュメントの記述を読んで写したもので、**実際に各アプリへ登録して動かしてはいません(UNVERIFIED)**。
 - `agent/mcp.mjs` 自体は、MCP SDK のクライアント(`scripts/test-mcp.mjs`、`npm run test:mcp`)で通し確認済み。
 - Windows のパス・`node` の PATH(特に非対話シェルで nvm の node が見つからない場合は `command` に node の絶対パスを書く)は環境ごとに確認してください。
+
+## 人と AI の分担(人の手間を最小にする進め方)
+
+irodori には「AI への依頼」の受付表があります(画面の「AI エージェント連携」や、エディタ上部の「AI に依頼」)。人がやるのは **①依頼を一言書く ②事実の確認 ③採用/やり直し** だけで、それ以外は AI が担います。
+
+AI は次の順で進めてください(MCP の道具名):
+
+1. `get_requests` で未処理の依頼(待機中・やり直し)を取る。
+2. 1件ずつ `update_request(id, "working")` にしてから作業する。
+3. 新規なら `list_sizes` / `list_templates` で近いものを選び、`create_design` か `apply_template`(複数ページのテンプレは `mode: "append-all"` で全ページ)。既存の修正なら `get_design` で現状を把握してから `update_object` などで必要な所だけ変える。
+4. **`check_design` を実行し、指摘をすべて直す**(はみ出し・ページ外・コントラスト・小さすぎる文字・余白・解像度・フォント数)。直したらもう一度実行して 0 件にする。
+5. `export_design` で確認用の画像を書き出し、自分で見て崩れがないか確かめる。
+6. `update_request(id, "review", note, designId)`。note には「何をしたか」と「**人に確認してほしい事実**(価格・日付・社名・連絡先など、AI が推測した箇所)」を必ず書く。
+7. 人が「やり直し」にした依頼は、`get_requests` に指示付きで戻ってくる。同じ手順で直す。
+
+決まり:
+- **人の確認なしに完了(done)にしない。** 完了にできるのは人だけです。
+- 事実(価格・日時・固有名詞)を推測で埋めたら、必ず note で人に確認を求める。
+- 画像の生成はできません。写真が必要なら、人が用意した素材(designs/assets/)を使うか、写真フレームを置いて note で依頼する。
+
+任せきりにする例(Claude Code):
+
+```
+/loop 5m irodori の依頼を処理して。get_requests → working → 作業 → check_design を 0 件に → export_design → review(note に確認してほしい事実)。依頼が無ければ待つ。
+```
 
 ## 作業のコツ
 
