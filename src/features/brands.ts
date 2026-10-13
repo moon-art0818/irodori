@@ -27,8 +27,11 @@ function init(): Promise<void> {
     const id = uid()
     await idbPut('brand', { ...blank(id, 'ブランド1'), colors: old.colors, headingFont: old.headingFont, bodyFont: old.bodyFont, logos: old.logos })
     await idbPut('brand', { id: 'brands_meta', order: [id], activeId: id } satisfies Meta)
-  })())
+  })().catch((e) => { ready = null; throw e }))
 }
+// キットの追加・削除は一覧(meta)を読み書きするので、連打しても順番に実行する
+let chain: Promise<unknown> = Promise.resolve()
+function serial<T>(fn: () => Promise<T>): Promise<T> { const r = chain.then(fn); chain = r.catch(() => {}); return r }
 const getMeta = async () => { await init(); return (await idbGet<Meta>('brand', 'brands_meta'))! }
 const putMeta = (m: Meta) => idbPut('brand', m)
 
@@ -52,7 +55,7 @@ export async function getActiveBrand(): Promise<BrandEntry> {
 }
 
 /** キットを追加する(最大10個)。from を渡すとその内容を複製する。戻り値は新しいキット */
-export async function createBrand(name: string, from?: BrandPatch): Promise<BrandEntry> {
+export function createBrand(name: string, from?: BrandPatch): Promise<BrandEntry> { return serial(async () => {
   const m = await getMeta()
   if (m.order.length >= MAX_BRANDS) throw new Error(`ブランドキットは最大 ${MAX_BRANDS} 個までです`)
   const k = { ...blank(uid(), name.trim() || `ブランド${m.order.length + 1}`), ...from } as BrandEntry
@@ -60,7 +63,7 @@ export async function createBrand(name: string, from?: BrandPatch): Promise<Bran
   await putMeta({ ...m, order: [...m.order, k.id] })
   notify()
   return k
-}
+}) }
 
 /** キットを更新する(アクティブなキットなら、既存の単一キット側にも反映して購読者へ通知する) */
 export async function updateBrand(id: string, patch: BrandPatch): Promise<BrandEntry> {
@@ -95,11 +98,12 @@ export async function duplicateBrand(id: string): Promise<BrandEntry> {
 }
 
 /** キットを削除する(最後の1個は消せない。アクティブなキットを消すと先頭のキットに切り替わる) */
-export async function deleteBrand(id: string) {
+export function deleteBrand(id: string): Promise<void> { return serial(async () => {
   const m = await getMeta()
+  if (!m.order.includes(id)) throw new Error('ブランドキットが見つかりません')
   if (m.order.length <= 1) throw new Error('最後のブランドキットは削除できません')
   const order = m.order.filter((x) => x !== id)
   await idbDelete('brand', id)
   await putMeta({ ...m, order })
   if (m.activeId === id) await setActiveBrand(order[0]); else notify()
-}
+}) }

@@ -31,6 +31,8 @@ export async function exportGIF(
     const palette = quantize(rgba, 256)
     gif.writeFrame(applyPalette(rgba, palette), W, H, { palette, delay: delayMs, repeat: 0 })
   }
+  // ページ秒数は 0.5〜60 秒に収める(GIF の表示時間の上限と、0 / NaN による空の GIF を防ぐ)
+  opts = { ...opts, pageSeconds: Math.min(60, Math.max(0.5, Number(opts.pageSeconds) || 2)) }
   for (let i = 0; i < n; i++) {
     const scene = await loadScene(doc.pages[i].json, doc.width, doc.height, s)
     try {

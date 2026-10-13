@@ -98,7 +98,7 @@ function PdfTool() {
     try {
       const { importPDF } = await import('../features/pdfImport')
       const r = await importPDF(f, (done, total) => setBusy(`読み込み中… ${done}/${total}`))
-      const d = createDoc(f.name.replace(/\\.pdf$/i, ''), r.width, r.height)
+      const d = createDoc(f.name.replace(/\.pdf$/i, ''), r.width, r.height)
       d.pages = r.pages.map((p, i) => ({ id: newPageId() + i, json: p.json }))
       d.updatedAt = await repo.put(d, { baseUpdatedAt: null })
       toast.success(`${r.pages.length} ページを読み込みました`)

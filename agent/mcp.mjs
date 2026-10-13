@@ -390,7 +390,7 @@ tool('get_requests', '人が irodori の画面で書いた「AI への依頼」�
 })
 
 tool('update_request', '依頼の状態を更新する。着手時は working、仕上げて人に見てほしいときは review(note に「何をしたか・人に確認してほしい事実(価格・日付・社名など)」を書く)。人の確認なしに done にしないこと。Update a request status.', {
-  id: z.string(), status: z.enum(['working', 'review', 'cancelled']), note: z.string().max(4000).default(''),
+  id: z.string(), status: z.enum(['working', 'review', 'cancelled']), note: z.string().max(4000).optional(),
   designId: z.string().optional().describe('作ったデザインの id(review のとき推奨)'),
 }, async ({ id, status, note, designId }) => {
   const { request } = await api('PATCH', `/local/requests/${encodeURIComponent(id)}`, { status, note, by: 'agent', preview: designId })

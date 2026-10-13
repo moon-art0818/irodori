@@ -8,6 +8,7 @@ import http from 'node:http'
 import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
+import os from 'node:os'
 import { fileURLToPath } from 'node:url'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
@@ -87,24 +88,42 @@ function askBrowser(msg, timeoutMs = 60000) {
 const META = path.join(DIR, '.irodori')
 fs.mkdirSync(META, { recursive: true })
 const REQ_FILE = path.join(META, 'requests.json')
-const readReqs = () => { try { return JSON.parse(fs.readFileSync(REQ_FILE, 'utf8')) } catch { return [] } }
+// 壊れたファイルは黙って空扱いにせず .bak に退避する(上書きで依頼が消えるのを防ぐ)
+const readReqs = () => {
+  let raw
+  try { raw = fs.readFileSync(REQ_FILE, 'utf8') } catch { return [] }
+  try {
+    const v = JSON.parse(raw)
+    if (Array.isArray(v)) return v.filter((r) => r && typeof r === 'object' && typeof r.id === 'string').map((r) => ({ ...r, history: Array.isArray(r.history) ? r.history : [] }))
+  } catch { /* 下で退避 */ }
+  const bak = `${REQ_FILE}.${Date.now()}.bak`
+  try { fs.renameSync(REQ_FILE, bak); console.warn(`requests.json が読めないため ${bak} に退避しました`) } catch { /* 退避できなければそのまま */ }
+  return []
+}
 const writeReqs = (list) => { const tmp = REQ_FILE + '.tmp'; fs.writeFileSync(tmp, JSON.stringify(list, null, 2)); fs.renameSync(tmp, REQ_FILE); send({ type: 'requests' }) }
 const REQ_STATUS = ['queued', 'working', 'review', 'done', 'redo', 'cancelled']
 
 // ---- AI エージェントの接続状態(MCP サーバーから定期的に届く合図)----
 let agent = { client: '', lastSeen: 0 }
 
+// 受け付ける Host(DNS リバインディング対策)。0.0.0.0 で LAN に出すときは、この PC の IP アドレスも許可する
+const ALLOWED_HOSTS = new Set(['127.0.0.1', 'localhost', '[::1]'])
+if (HOST === '0.0.0.0') for (const list of Object.values(os.networkInterfaces())) for (const a of list ?? []) ALLOWED_HOSTS.add(a.family === 'IPv6' ? `[${a.address}]` : a.address)
+else ALLOWED_HOSTS.add(HOST)
+const originHost = (o) => { try { return new URL(o).host } catch { return '' } }
+
 const server = http.createServer(async (req, res) => {
-  const url = new URL(req.url, 'http://x')
-  const p = decodeURIComponent(url.pathname)
-  let m
+  let m, p
+  try {
+    p = decodeURIComponent(new URL(req.url, 'http://x').pathname)
+  } catch { return json(res, 400, { error: '不正な URL です' }) }
   try {
     // DNS リバインディング対策: 自分自身(localhost / 127.0.0.1)宛て以外は受け付けない
     const host = String(req.headers.host ?? '').replace(/:\d+$/, '')
-    if (!['127.0.0.1', 'localhost', '[::1]'].includes(host) && HOST !== '0.0.0.0') return json(res, 403, { error: 'localhost 以外からの接続は受け付けません' })
+    if (!ALLOWED_HOSTS.has(host)) return json(res, 403, { error: 'localhost 以外からの接続は受け付けません' })
     // 他サイトからの操作を防ぐ(ブラウザからの変更系は同じオリジンのみ)
     const origin = req.headers.origin
-    if (req.method !== 'GET' && origin && new URL(origin).host !== req.headers.host) return json(res, 403, { error: '別のサイトからの操作は受け付けません' })
+    if (req.method !== 'GET' && origin && originHost(origin) !== req.headers.host) return json(res, 403, { error: '別のサイトからの操作は受け付けません' })
 
     if (p === '/local/ping') return json(res, 200, { ok: true, dir: DIR, version: 1 })
     if (p === '/local/agent-info') return json(res, 200, {
@@ -134,8 +153,11 @@ const server = http.createServer(async (req, res) => {
       const list = readReqs(); const r = list.find((x) => x.id === m[1])
       if (!r) return json(res, 404, { error: '依頼が見つかりません' })
       if (b.status && !REQ_STATUS.includes(b.status)) return json(res, 400, { error: '不正な状態です' })
+      // 完了・やり直しを決めるのは人だけ(AI は working / review / cancelled まで)
+      if ((b.status === 'done' || b.status === 'redo') && b.by !== 'human') return json(res, 403, { error: '完了・やり直しは人が画面から決めます' })
       if (b.status) { r.history.push({ at: Date.now(), from: r.status, to: b.status, by: b.by ?? '', note: b.note ?? '' }); r.status = b.status }
-      if (typeof b.note === 'string') r.note = b.note.slice(0, 4000)
+      // 空のメモでは上書きしない(人のやり直し指示や AI の確認メモを消さない)
+      if (typeof b.note === 'string' && b.note.trim()) r.note = b.note.slice(0, 4000)
       if (typeof b.preview === 'string') r.preview = b.preview
       r.updatedAt = Date.now()
       writeReqs(list)
@@ -203,7 +225,7 @@ const server = http.createServer(async (req, res) => {
     // 画面(dist/)。見つからなければ index.html(画面内の移動用)
     if (!fs.existsSync(DIST)) return json(res, 500, { error: '先に npm run build を実行してください' })
     let file = path.normalize(path.join(DIST, p === '/' ? 'index.html' : p))
-    if (!file.startsWith(DIST)) return json(res, 403, { error: 'forbidden' })
+    if (file !== DIST && !file.startsWith(DIST + path.sep)) return json(res, 403, { error: 'forbidden' })
     if (fs.existsSync(file) && fs.statSync(file).isDirectory()) file = path.join(file, 'index.html')
     if (!fs.existsSync(file)) file = path.join(DIST, 'index.html')
     res.writeHead(200, { 'Content-Type': MIME[path.extname(file).toLowerCase()] ?? 'application/octet-stream', 'Cache-Control': 'no-store' })
