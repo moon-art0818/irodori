@@ -108,10 +108,10 @@ function stripExternalSrc(node: unknown): void {
   // Unsplash はホットリンク必須(API ガイドライン)なので、Unsplash・Pexels の画像 URL だけは残す
   const allowed = typeof o.src === 'string' && /^https:\/\/(images\.unsplash\.com|images\.pexels\.com)\//.test(o.src)
   if (typeof o.src === 'string' && (o.assetId || (!allowed && !/^data:image\/(png|jpeg|webp|gif);/.test(o.src)))) delete o.src
-  // 写真のクレジットのリンクは Unsplash・Pexels の https だけ残す
+  // クレジットのリンクは https だけ残す(出典は Unsplash・Pexels・Openverse・Wikimedia など。表示用のリンクで、読み込みには使わない)
   if (o.credit && typeof o.credit === 'object') {
     const c = o.credit as Record<string, unknown>
-    for (const k of ['authorUrl', 'pageUrl']) if (typeof c[k] !== 'string' || !/^https:\/\/(unsplash\.com|www\.pexels\.com)\//.test(c[k] as string)) delete c[k]
+    for (const k of ['authorUrl', 'pageUrl']) if (typeof c[k] !== 'string' || !/^https:\/\/[^\s"'<>]{1,500}$/.test(c[k] as string)) delete c[k]
   }
   for (const v of Object.values(o)) stripExternalSrc(v)
 }
