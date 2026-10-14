@@ -3,9 +3,9 @@ import type { DesignDoc } from '../editor/types'
 
 export interface ApiUser { id: string; name: string; createdAt: number; usedBytes: number; quotaBytes: number; passkeys: number; googleLinked: boolean }
 /** サーバーで使えるログイン方法・写真サービス(キーが設定されているか) */
-export interface Providers { google: boolean; unsplash: boolean; pexels: boolean }
-/** 写真検索の結果(Unsplash / Pexels を同じ形にそろえる) */
-export interface PhotoResult { id: string; provider: 'unsplash' | 'pexels'; thumb: string; url: string; w: number; h: number; author: string; authorUrl: string; pageUrl: string; downloadLocation?: string }
+export interface Providers { google: boolean; unsplash: boolean; pexels: boolean; pixabay: boolean }
+/** 写真検索の結果(Unsplash / Pexels / Pixabay を同じ形にそろえる) */
+export interface PhotoResult { id: string; provider: 'unsplash' | 'pexels' | 'pixabay'; thumb: string; url: string; w: number; h: number; author: string; authorUrl: string; pageUrl: string; downloadLocation?: string }
 
 /** 一覧用(中身なし) */
 export interface DocMeta { id: string; name: string; width: number; height: number; pageCount: number; updatedAt: number; createdAt: number; shareId: string | null; thumbUrl: string | null }

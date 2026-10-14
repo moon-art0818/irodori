@@ -7,10 +7,12 @@ import { putAsset, downscale } from '../editor/assets'
 import { dragAdd } from '../editor/dnd'
 import { api } from '../api/client'
 import { getProviders } from '../api/session'
+import { pixabayRelay } from '../features/media'
 import type { Providers } from '../api/contract'
 
-interface Photo { id: string; thumb: string; full: string; credit: string; w: number; h: number; src: 'openverse' | 'picsum' | 'unsplash' | 'pexels' | 'wikimedia'; credit0?: { author?: string; pageUrl?: string; source: string }; author?: string; authorUrl?: string; pageUrl?: string; downloadLocation?: string }
-type Source = 'free' | 'unsplash' | 'pexels'
+interface Photo { id: string; thumb: string; full: string; credit: string; w: number; h: number; src: 'openverse' | 'picsum' | 'unsplash' | 'pexels' | 'pixabay' | 'wikimedia'; credit0?: { author?: string; pageUrl?: string; source: string }; author?: string; authorUrl?: string; pageUrl?: string; downloadLocation?: string }
+type Source = 'free' | 'unsplash' | 'pexels' | 'pixabay'
+const SRC_NAME = { unsplash: 'Unsplash', pexels: 'Pexels', pixabay: 'Pixabay' } as const
 type FreeSrc = 'openverse' | 'wikimedia'
 
 // 日本語の検索語を英語に寄せる(Openverse は英語の方がヒットが多い)
@@ -108,7 +110,7 @@ export function PhotosTab({ ed }: { ed: EditorCore }) {
       if (src !== 'free') {
         if (!query) { setItems([]); setBusy(false); return }
         const r = await api.searchPhotos(src, await toEnglishIfNeeded(query, src), p)
-        res = r.results.map((x) => ({ id: x.id, thumb: x.thumb, full: x.url, credit: `${x.author} / ${src === 'unsplash' ? 'Unsplash' : 'Pexels'}`, w: x.w, h: x.h, src: x.provider, author: x.author, authorUrl: x.authorUrl, pageUrl: x.pageUrl, downloadLocation: x.downloadLocation }))
+        res = r.results.map((x) => ({ id: x.id, thumb: x.thumb, full: x.url, credit: `${x.author} / ${SRC_NAME[src]}`, w: x.w, h: x.h, src: x.provider, author: x.author, authorUrl: x.authorUrl, pageUrl: x.pageUrl, downloadLocation: x.downloadLocation }))
       } else if (fs === 'wikimedia') res = await searchWikimedia(query, p)
       else res = query ? await searchOpenverse(query, p) : await listPicsum(p)
       setItems((prev) => (p === 1 ? res : [...prev, ...res]))
@@ -119,6 +121,18 @@ export function PhotosTab({ ed }: { ed: EditorCore }) {
   useEffect(() => { load('', 1) }, [])
   const add = async (ph: Photo) => {
     setAdding(ph.id); setErr('')
+    if (ph.src === 'pixabay') {
+      // Pixabay の URL は恒久利用できず、CORS も Referer 制限もあるので、サーバー経由で取って自分の素材庫に保存する
+      try {
+        const r = await fetch(pixabayRelay(ph.full))
+        if (!r.ok) throw new Error(String(r.status))
+        const { id, url } = await putAsset(await downscale(await r.blob()))
+        const o = (await ed.addImageURL(url, id)) as any
+        if (o) { o.credit = { author: ph.author, authorUrl: ph.authorUrl, pageUrl: ph.pageUrl, source: 'Pixabay' }; ed.commit() }
+      } catch { setErr('この写真は取り込めませんでした。別の写真を選んでください') }
+      finally { setAdding('') }
+      return
+    }
     if (ph.src === 'unsplash' || ph.src === 'pexels') {
       // Unsplash・Pexels は API が返す URL をそのまま使う(ホットリンク)。撮影者のクレジットを画像に付けて残す
       try {
@@ -145,11 +159,12 @@ export function PhotosTab({ ed }: { ed: EditorCore }) {
   }
   return (
     <>
-      {(prov?.unsplash || prov?.pexels) && (
+      {(prov?.unsplash || prov?.pexels || prov?.pixabay) && (
         <div className="row src-tabs">
           <button className={'chip' + (source === 'free' ? ' on' : '')} onClick={() => { setSource('free'); setItems([]); load(term.current, 1, 'free') }}>無料素材</button>
           {prov.unsplash && <button className={'chip' + (source === 'unsplash' ? ' on' : '')} onClick={() => { setSource('unsplash'); setItems([]); if (term.current) load(term.current, 1, 'unsplash') }}>Unsplash</button>}
           {prov.pexels && <button className={'chip' + (source === 'pexels' ? ' on' : '')} onClick={() => { setSource('pexels'); setItems([]); if (term.current) load(term.current, 1, 'pexels') }}>Pexels</button>}
+          {prov.pixabay && <button className={'chip' + (source === 'pixabay' ? ' on' : '')} onClick={() => { setSource('pixabay'); setItems([]); if (term.current) load(term.current, 1, 'pixabay') }}>Pixabay</button>}
         </div>
       )}
       {source === 'free' && (
@@ -161,13 +176,14 @@ export function PhotosTab({ ed }: { ed: EditorCore }) {
       <form onSubmit={(e) => { e.preventDefault(); term.current = q; load(q, 1) }}>
         <input className="search" placeholder="写真を検索(例: コーヒー、海、business)" value={q} onChange={(e) => setQ(e.target.value)} />
       </form>
+      {source === 'pixabay' && <p className="hint">Pixabay の素材(Pixabay Content License・商用可・表記不要)。出典: <a href="https://pixabay.com/" target="_blank" rel="noopener noreferrer">Pixabay</a></p>}
       <p className="hint">{source === 'free' && freeSrc === 'wikimedia' ? 'Wikimedia Commons の CC0・パブリックドメインのみ(表記不要・商用可)。人物・商標・建造物などの権利が写り込んでいる場合があるので、使う前に出典ページで確認してください' : term.current ? '検索結果は CC0・パブリックドメインのみ(表記不要・商用可)' : 'おすすめ写真(Unsplash License・商用可)。キーワードで検索もできます'}。フレームを選んでからクリックすると枠の中に入ります。</p>
       {err && <p className="error">{err}</p>}
       <div className="photo-grid">
         {items.map((p) => (
           <button key={p.id} className={'photo' + (adding === p.id ? ' busy' : '')} draggable onDragStart={dragAdd(() => add(p))} onClick={() => add(p)} title={p.credit}>
-            <img src={p.thumb} alt="" loading="lazy" />
-            {p.author && <span className="photo-credit" onClick={(e) => e.stopPropagation()}>Photo by <a href={p.authorUrl} target="_blank" rel="noopener noreferrer">{p.author}</a> on <a href={p.pageUrl} target="_blank" rel="noopener noreferrer">{p.src === 'unsplash' ? 'Unsplash' : 'Pexels'}</a></span>}
+            <img src={p.thumb} alt="" loading="lazy" referrerPolicy={p.src === 'pixabay' ? 'origin' : undefined} />
+            {p.author && <span className="photo-credit" onClick={(e) => e.stopPropagation()}>Photo by <a href={p.authorUrl} target="_blank" rel="noopener noreferrer">{p.author}</a> on <a href={p.pageUrl} target="_blank" rel="noopener noreferrer">{p.src === 'unsplash' ? 'Unsplash' : p.src === 'pixabay' ? 'Pixabay' : 'Pexels'}</a></span>}
           </button>
         ))}
       </div>

@@ -59,7 +59,7 @@ export async function addPasskey() {
 let prov: Providers | null = null
 export async function getProviders(): Promise<Providers> {
   if (prov) return prov
-  try { prov = await api.providers() } catch { prov = { google: false, unsplash: false, pexels: false } }
+  try { prov = await api.providers() } catch { prov = { google: false, unsplash: false, pexels: false, pixabay: false } }
   return prov
 }
 export async function refreshUser() { try { user = (await api.me()).user; emit() } catch { /* */ } }

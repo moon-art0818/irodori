@@ -42,7 +42,7 @@ export const api = {
   listPasskeys: () => call<{ passkeys: { id: string; synced: boolean; createdAt: number }[] }>('GET', '/api/passkeys'),
   deletePasskey: (id: string) => call<{ ok: true }>('DELETE', `/api/passkeys/${encodeURIComponent(id)}`),
   googleUnlink: () => call<{ ok: true }>('POST', '/api/auth/google/unlink', {}),
-  searchPhotos: (provider: 'unsplash' | 'pexels', q: string, page: number) => call<{ results: PhotoResult[] }>('GET', `/api/photos/search?provider=${provider}&q=${encodeURIComponent(q)}&page=${page}`),
+  searchPhotos: (provider: 'unsplash' | 'pexels' | 'pixabay', q: string, page: number) => call<{ results: PhotoResult[] }>('GET', `/api/photos/search?provider=${provider}&q=${encodeURIComponent(q)}&page=${page}`),
   unsplashDownload: (downloadLocation: string) => call<{ ok: true }>('POST', '/api/photos/unsplash-download', { downloadLocation }),
 }
 

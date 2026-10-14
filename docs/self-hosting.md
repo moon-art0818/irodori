@@ -60,6 +60,7 @@ npx wrangler secret put GOOGLE_CLIENT_ID
 npx wrangler secret put GOOGLE_CLIENT_SECRET
 npx wrangler secret put UNSPLASH_ACCESS_KEY    # 写真検索に Unsplash を追加
 npx wrangler secret put PEXELS_API_KEY         # 写真検索に Pexels を追加
+npx wrangler secret put PIXABAY_API_KEY        # 写真・動画の検索に Pixabay を追加
 ```
 
 ### Google ログイン
@@ -68,9 +69,11 @@ npx wrangler secret put PEXELS_API_KEY         # 写真検索に Pexels を追�
 2. 「承認済みのリダイレクト URI」に `https://<あなたの公開オリジン>/api/auth/google/callback` を登録する(コードは `<origin>/api/auth/google/callback` を使います)
 3. クライアント ID / シークレットを上のコマンドで登録する
 
-### 写真検索(Unsplash / Pexels)
+### 写真・動画検索(Unsplash / Pexels / Pixabay)
 
 各サービスでアプリを登録して API キーを取得します。キーはサーバー(Worker)だけが持ち、ブラウザには渡りません。検索結果は R2 に 1 時間キャッシュされます。各社のガイドライン(クレジット表示など)に従ってください。利用回数の上限は各社の現行の規約を確認してください。
+
+**Pixabay**(写真・動画): [Pixabay API](https://pixabay.com/api/docs/) のキーを `PIXABAY_API_KEY` に登録します。検索結果は規約に従い R2 に 24 時間キャッシュし、画面に Pixabay の素材であることを表示します。Pixabay の画像・動画は CORS と Referer の制限があるため、取り込みは Worker の中継(`/api/media/pixabay`、`cdn.pixabay.com` の写真・動画だけ許可、100MB まで)を通して素材庫に保存します。公開デモ(`DEMO=1`)でも、キーを入れれば Pixabay の検索と取り込みだけは使えます(回数制限は IP ごと)。
 
 ## ローカルで動かす(Worker 込み)
 
@@ -84,7 +87,7 @@ npx wrangler dev
 
 ## 公開デモにする(`DEMO`)
 
-`wrangler.jsonc` の `vars` に `"DEMO": "1"` を入れると、Worker は `/api/me` と `/api/providers` 以外の API を拒否します。ログイン・クラウド保存・共有・写真中継が止まり、編集はブラウザ内保存のみになります。不特定多数に見せるだけの用途向けです。通常運用は `"0"`。
+`wrangler.jsonc` の `vars` に `"DEMO": "1"` を入れると、Worker は `/api/me` と `/api/providers` 以外の API を拒否します(`PIXABAY_API_KEY` を設定した場合のみ、Pixabay の検索・取り込みは例外)。ログイン・クラウド保存・共有・写真中継が止まり、編集はブラウザ内保存のみになります。不特定多数に見せるだけの用途向けです。通常運用は `"0"`。
 
 ## 注意点
 

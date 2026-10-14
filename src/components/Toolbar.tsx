@@ -301,7 +301,7 @@ function ImageControls({ ed, img }: { ed: EditorCore; img: FabricImage }) {
   )
 }
 
-const SAFE_CREDIT_URL = /^https:\/\/(commons\.wikimedia\.org|www\.pexels\.com|freesound\.org|www\.jamendo\.com)\//
+const SAFE_CREDIT_URL = /^https:\/\/(commons\.wikimedia\.org|www\.pexels\.com|pixabay\.com|freesound\.org|www\.jamendo\.com)\//
 
 /** 動画: 再生・停止、ミュート、音量、トリミング(開始・終了)、繰り返し */
 function VideoControls({ ed, v }: { ed: EditorCore; v: Video }) {

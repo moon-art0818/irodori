@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { EditorCore } from '../editor/core'
 import { dragAdd } from '../editor/dnd'
 import { MAX_MEDIA_BYTES } from '../editor/assets'
-import { fetchBlob, fmtTime, notifyCollabProblem, searchCommonsVideos, searchPexelsVideos, type VideoHit } from '../features/media'
+import { fetchBlob, fmtTime, notifyCollabProblem, searchCommonsVideos, searchPexelsVideos, searchPixabayVideos, type VideoHit } from '../features/media'
 import { getProviders } from '../api/session'
 
 /** アップロード・ドロップ・貼り付けで動画ファイルを置く(エディタからも使う) */
@@ -23,13 +23,14 @@ export function VideosTab({ ed }: { ed: EditorCore }) {
   const [adding, setAdding] = useState('')
   const [err, setErr] = useState('')
   const [pexels, setPexels] = useState(false) // サーバーに PEXELS_API_KEY があるとき(公開デモでは出ない)
-  const [src, setSrc] = useState<'commons' | 'pexels'>('commons')
-  useEffect(() => { getProviders().then((p) => setPexels(!!p.pexels)) }, [])
+  const [pixabay, setPixabay] = useState(false) // サーバーに PIXABAY_API_KEY があるとき(公開デモでもキーがあれば出る)
+  const [src, setSrc] = useState<'commons' | 'pexels' | 'pixabay'>('commons')
+  useEffect(() => { getProviders().then((p) => { setPexels(!!p.pexels); setPixabay(!!p.pixabay) }) }, [])
   const term = useRef('')
   const load = async (query: string, p: number, s = src) => {
     setBusy(true); setErr('')
     try {
-      const res = s === 'pexels' ? (query ? await searchPexelsVideos(query, p) : []) : await searchCommonsVideos(query, p)
+      const res = s === 'pexels' ? (query ? await searchPexelsVideos(query, p) : []) : s === 'pixabay' ? (query ? await searchPixabayVideos(query, p) : []) : await searchCommonsVideos(query, p)
       setItems((prev) => (p === 1 ? res : [...prev, ...res]))
       setPage(p)
     } catch (e: any) { setErr(e?.message ?? String(e)) }
@@ -61,22 +62,23 @@ export function VideosTab({ ed }: { ed: EditorCore }) {
       </label>
       <p className="hint">mp4・webm・mov(お使いのブラウザで再生できるもの)、1 本 {Math.round(MAX_MEDIA_BYTES / 1048576)}MB まで。データはこのブラウザの中に保存されます。キャンバスへのドラッグ&ドロップでも置けます。</p>
       <div className="sec-title">動画素材を探す</div>
-      {pexels && (
+      {(pexels || pixabay) && (
         <div className="row src-tabs">
           <button className={'chip' + (src === 'commons' ? ' on' : '')} onClick={() => { setSrc('commons'); setItems([]); load(term.current, 1, 'commons') }}>Wikimedia Commons</button>
-          <button className={'chip' + (src === 'pexels' ? ' on' : '')} onClick={() => { setSrc('pexels'); setItems([]); if (term.current) load(term.current, 1, 'pexels') }}>Pexels</button>
+          {pexels && <button className={'chip' + (src === 'pexels' ? ' on' : '')} onClick={() => { setSrc('pexels'); setItems([]); if (term.current) load(term.current, 1, 'pexels') }}>Pexels</button>}
+          {pixabay && <button className={'chip' + (src === 'pixabay' ? ' on' : '')} onClick={() => { setSrc('pixabay'); setItems([]); if (term.current) load(term.current, 1, 'pixabay') }}>Pixabay</button>}
         </div>
       )}
       <form onSubmit={(e) => { e.preventDefault(); term.current = q; load(q, 1) }}>
         <input className="search" placeholder="動画を検索(例: 海、city、forest)" value={q} onChange={(e) => setQ(e.target.value)} />
       </form>
-      <p className="hint">{src === 'pexels' ? 'Pexels License(商用可・表記不要)。撮影者のクレジットを動画に残します。' : 'Wikimedia Commons の CC0・パブリックドメインのみ(表記不要・商用可)。'}人物・商標・建造物などの権利が写り込んでいる場合があるので、使う前に出典ページで確認してください。クリックで取り込み(数 MB〜数十 MB)。</p>
+      <p className="hint">{src === 'pixabay' ? <>Pixabay の素材(Pixabay Content License・商用可・表記不要)。出典: <a href="https://pixabay.com/" target="_blank" rel="noopener noreferrer">Pixabay</a>。投稿者のクレジットを動画に残します。</> : src === 'pexels' ? 'Pexels License(商用可・表記不要)。撮影者のクレジットを動画に残します。' : 'Wikimedia Commons の CC0・パブリックドメインのみ(表記不要・商用可)。'}人物・商標・建造物などの権利が写り込んでいる場合があるので、使う前に出典ページで確認してください。クリックで取り込み(数 MB〜数十 MB)。</p>
       {err && <p className="error">{err}</p>}
       <div className="photo-grid">
         {items.map((h) => (
           <button key={h.id} className={'photo' + (adding === h.id ? ' busy' : '')} draggable onDragStart={dragAdd(() => add(h))} onClick={() => add(h)}
             title={`${h.title}\n${h.credit.author ?? '不明'} / ${h.credit.source}`}>
-            <img src={h.thumb} alt="" loading="lazy" />
+            <img src={h.thumb} alt="" loading="lazy" referrerPolicy={src === 'pixabay' ? 'origin' : undefined} />
             <span className="vid-badge">{fmtTime(h.duration)}{h.estBytes ? ` · ${Math.max(1, Math.round(h.estBytes / 1048576))}MB` : ''}</span>
           </button>
         ))}

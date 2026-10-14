@@ -89,6 +89,20 @@ export async function searchPexelsVideos(q: string, page: number): Promise<Video
   }))
 }
 
+/** Pixabay 動画(サーバーの中継。PIXABAY_API_KEY があるときだけ)。動画ファイルは CORS が無いので /api/media/pixabay 経由で取る */
+export async function searchPixabayVideos(q: string, page: number): Promise<VideoHit[]> {
+  const r = await fetch(`/api/videos/search?provider=pixabay&q=${encodeURIComponent(q)}&page=${page}`, { credentials: 'same-origin' })
+  if (!r.ok) throw new Error((await r.json().catch(() => ({})))?.error ?? `検索に失敗しました(${r.status})`)
+  const j = await r.json()
+  return (j.results ?? []).map((x: any): VideoHit => ({
+    id: x.id, thumb: x.thumb, url: pixabayRelay(x.url), mime: 'video/mp4', w: x.w, h: x.h, duration: x.duration ?? 0, estBytes: 0, title: '',
+    credit: { author: x.author, authorUrl: x.authorUrl, pageUrl: x.pageUrl, source: 'Pixabay' },
+  }))
+}
+
+/** Pixabay の画像・動画を取り込むときの取得先(サーバーが Referer を付けて中継する) */
+export const pixabayRelay = (url: string) => `/api/media/pixabay?u=${encodeURIComponent(url)}`
+
 // ---------------- 音楽: Openverse audio ----------------
 export interface AudioHit {
   id: string; title: string; url: string; creator: string; license: string; licenseLabel: string; duration: number

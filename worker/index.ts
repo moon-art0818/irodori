@@ -31,6 +31,7 @@ const routes: Route[] = [
   route('GET', '/api/providers', (r, e) => Promise.resolve(photos.providers(r, e))),
   route('GET', '/api/photos/search', (r, e) => photos.searchPhotos(r, e)),
   route('GET', '/api/videos/search', (r, e) => photos.searchVideos(r, e)),
+  route('GET', '/api/media/pixabay', (r, e) => photos.pixabayMedia(r, e)),
   route('POST', '/api/photos/unsplash-download', (r, e) => photos.unsplashDownload(r, e)),
   route('GET', '/api/docs', (r, e) => docs.listDocs(r, e)),
   route('GET', '/api/docs/:id', (r, e, p) => docs.getDoc(r, e, p[0])),
@@ -70,10 +71,12 @@ export default {
         return await handleCollab(req, env, url)
       }
       if (env.DEMO === '1') {
-        // 公開デモ: 状態を返す2つ以外は使えない
+        // 公開デモ: 状態を返す2つと、Pixabay の検索・中継(キーがあるときだけ。CSRF 確認と回数制限は下で通常どおり)以外は使えない
         if (url.pathname === '/api/me') return json({ user: null, demo: true })
-        if (url.pathname === '/api/providers') return json({ google: false, unsplash: false, pexels: false, demo: true })
-        return json({ error: 'デモ版ではこの機能は使えません。自分の環境で動かす方法は GitHub の README を見てください' }, 403)
+        if (url.pathname === '/api/providers') return json({ google: false, unsplash: false, pexels: false, pixabay: !!env.PIXABAY_API_KEY, demo: true })
+        const pixabayOk = req.method === 'GET' && (url.pathname === '/api/media/pixabay' ||
+          ((url.pathname === '/api/photos/search' || url.pathname === '/api/videos/search') && url.searchParams.get('provider') === 'pixabay'))
+        if (!pixabayOk) return json({ error: 'デモ版ではこの機能は使えません。自分の環境で動かす方法は GitHub の README を見てください' }, 403)
       }
       checkCsrf(req, url)
       // 認証系は IP ごとに回数を制限する(D1 の書き込み枠を使い切らせる攻撃・アカウント量産の対策)
@@ -81,6 +84,7 @@ export default {
       // Google ログインの開始・戻り、Unsplash のダウンロード通知も IP ごとに制限
       if ((url.pathname.startsWith('/api/auth/google/') || url.pathname === '/api/photos/unsplash-download') && env.AUTH_LIMIT && !(await env.AUTH_LIMIT.limit({ key: 'g:' + (req.headers.get('CF-Connecting-IP') ?? 'local') })).success) throw new HttpError(429, '操作が多すぎます。少し待ってからお試しください')
       if ((url.pathname === '/api/photos/search' || url.pathname === '/api/videos/search') && env.AUTH_LIMIT && !(await env.AUTH_LIMIT.limit({ key: 'photo:' + (req.headers.get('CF-Connecting-IP') ?? 'local') })).success) throw new HttpError(429, '検索が多すぎます。少し待ってからお試しください')
+      if (url.pathname === '/api/media/pixabay' && env.AUTH_LIMIT && !(await env.AUTH_LIMIT.limit({ key: 'media:' + (req.headers.get('CF-Connecting-IP') ?? 'local') })).success) throw new HttpError(429, '取り込みが多すぎます。少し待ってからお試しください')
       if ((url.pathname.startsWith('/api/auth/') || url.pathname.startsWith('/api/passkeys/')) && req.method === 'POST') {
         const ip = req.headers.get('CF-Connecting-IP') ?? 'local'
         if (env.AUTH_LIMIT && !(await env.AUTH_LIMIT.limit({ key: ip })).success) throw new HttpError(429, '操作が多すぎます。少し待ってからもう一度お試しください')

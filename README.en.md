@@ -57,8 +57,8 @@ Only what is implemented in the code is listed.
 - About 131,000 icons and illustrations from 45 sets (MIT, Apache-2.0 and ISC only; licenses below)
 - Fonts: all 1,950 Google Fonts families (68 with Japanese support), searchable from the font picker
 - 870 patterns, gradients, blobs and decorations (made in-house)
-- Photo search: Openverse and Wikimedia Commons (CC0 / public domain only), Picsum, and Unsplash / Pexels if you configure keys on the server version
-- **Video and music**: place videos in a design (play, trim, mute, volume) and set one background track. Sources: videos from Wikimedia Commons (CC0 / public domain); music and sound effects from Openverse (CC0, public domain, CC BY; BY-SA, NC and ND are excluded and CC BY credits are shown); Pexels video only if a key is set on the server. Your own videos (mp4 / webm / mov) and audio (mp3 / m4a / wav / ogg) also work
+- Photo search: Openverse and Wikimedia Commons (CC0 / public domain only), Picsum, and Unsplash / Pexels / Pixabay if you configure keys on the server version
+- **Video and music**: place videos in a design (play, trim, mute, volume) and set one background track. Sources: videos from Wikimedia Commons (CC0 / public domain); music and sound effects from Openverse (CC0, public domain, CC BY; BY-SA, NC and ND are excluded and CC BY credits are shown); Pexels and Pixabay video only if a key is set on the server. Your own videos (mp4 / webm / mov) and audio (mp3 / m4a / wav / ogg) also work
 - **Background removal** runs in the browser with an AI model (images are not uploaded; the model is downloaded on first use, about 98 MB with WebGPU or 192 MB with WASM)
 - **It cannot generate images.** If you need one, create it with another image-generation service and import it
 
@@ -120,6 +120,7 @@ npx wrangler secret put GOOGLE_CLIENT_ID
 npx wrangler secret put GOOGLE_CLIENT_SECRET
 npx wrangler secret put UNSPLASH_ACCESS_KEY
 npx wrangler secret put PEXELS_API_KEY
+npx wrangler secret put PIXABAY_API_KEY
 ```
 
 Details: **[docs/self-hosting.md](docs/self-hosting.md)**.
@@ -138,7 +139,7 @@ This is not a full replacement. Canva's features and pricing change, so treat th
 
 - **Templates**: 100 single-page templates and 60 multi-page sets, all original to this project.
 - **Icons / illustrations**: only sets under allowlisted licenses such as MIT and Apache-2.0 (`scripts/build-icons.mjs` rejects licenses outside its allowlist). See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
-- **Photos**: Openverse and Wikimedia Commons (CC0 / public domain only), Picsum, and Unsplash / Pexels when keys are set. Show credit for Unsplash / Pexels photos according to each provider's guidelines (the editor shows a "photo credit" chip).
+- **Photos**: Openverse and Wikimedia Commons (CC0 / public domain only), Picsum, and Unsplash / Pexels / Pixabay when keys are set (Pixabay Content License). Show credit for Unsplash / Pexels / Pixabay photos according to each provider's guidelines (the editor shows a "photo credit" chip).
 - **Video and music**: videos from Wikimedia Commons (CC0 / public domain); music and sound effects from Openverse (CC0 / public domain / CC BY, with credit shown for CC BY). Check the rights to any material you import yourself.
 - **Fonts**: loaded at runtime from Google Fonts (not bundled; OFL etc.).
 

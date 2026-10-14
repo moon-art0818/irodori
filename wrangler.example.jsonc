@@ -8,6 +8,8 @@
   "compatibility_date": "2026-09-01",
   "compatibility_flags": ["nodejs_compat"],
   "observability": { "enabled": true },
+  // 任意のキー(Google / Unsplash / Pexels / Pixabay)は `npx wrangler secret put <名前>` で登録する(このファイルには書かない)。
+  // 例: PIXABAY_API_KEY を登録すると、写真・動画の検索に Pixabay が加わる。公開デモ(DEMO=1)でも Pixabay だけは使える
   // 定期実行(triggers.crons)は使っていない
   "vars": {
     // "1" にすると、ログイン・クラウド保存を止めた公開デモになる(ブラウザ内保存のみ)。

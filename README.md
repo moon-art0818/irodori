@@ -57,8 +57,8 @@ SNS 画像・チラシ・名刺・サムネイル・スライドなどを、ブ�
 - アイコン・イラスト 約 13.1 万点(45 セット、MIT・Apache-2.0・ISC のみ。ライセンスは下記)
 - フォント: Google Fonts 全 1,950 書体(日本語対応 68)をフォント選択から検索して使える
 - パターン・グラデーション・ブロブ・装飾 870 点(自作)
-- 写真検索(Openverse・Wikimedia Commons の CC0/パブリックドメイン、Picsum。サーバー版でキーを設定すれば Unsplash / Pexels も)
-- **動画・音楽**: 動画をデザインに置ける(再生・トリミング・ミュート・音量)。BGM を 1 本設定できる。素材は、動画が Wikimedia Commons(CC0・パブリックドメイン)、音楽・効果音が Openverse(CC0・パブリックドメイン・CC BY。BY-SA・NC・ND は除外し、CC BY はクレジットを表示)、Pexels 動画はサーバーにキーを設定した場合のみ。自分の動画(mp4 / webm / mov)・音声(mp3 / m4a / wav / ogg)も使える
+- 写真検索(Openverse・Wikimedia Commons の CC0/パブリックドメイン、Picsum。サーバー版でキーを設定すれば Unsplash / Pexels / Pixabay も)
+- **動画・音楽**: 動画をデザインに置ける(再生・トリミング・ミュート・音量)。BGM を 1 本設定できる。素材は、動画が Wikimedia Commons(CC0・パブリックドメイン)、音楽・効果音が Openverse(CC0・パブリックドメイン・CC BY。BY-SA・NC・ND は除外し、CC BY はクレジットを表示)、Pexels・Pixabay の動画はサーバーにキーを設定した場合のみ。自分の動画(mp4 / webm / mov)・音声(mp3 / m4a / wav / ogg)も使える
 - **背景除去**: ブラウザ内で AI モデルを動かす(サーバーに画像を送らない。初回にモデルをダウンロード、WebGPU で約 98MB / WASM で約 192MB)
 - **画像の生成はできません**。必要なら別の画像生成サービスで作った画像を取り込んでください
 
@@ -120,6 +120,7 @@ npx wrangler secret put GOOGLE_CLIENT_ID
 npx wrangler secret put GOOGLE_CLIENT_SECRET
 npx wrangler secret put UNSPLASH_ACCESS_KEY
 npx wrangler secret put PEXELS_API_KEY
+npx wrangler secret put PIXABAY_API_KEY
 ```
 
 詳しい手順は **[docs/self-hosting.md](docs/self-hosting.md)**。
@@ -138,7 +139,7 @@ npx wrangler secret put PEXELS_API_KEY
 
 - **テンプレート**: 1 枚もの 100 件と複数ページのセット 60 件、すべてこのプロジェクトのオリジナルです。
 - **アイコン・イラスト**: MIT / Apache-2.0 等の許可リスト内のセットのみ採用(`scripts/build-icons.mjs` が許可リスト外のライセンスを拒否します)。一覧は [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
-- **写真**: Openverse・Wikimedia Commons(CC0 / パブリックドメインのみ)、Picsum、キーを設定した場合は Unsplash / Pexels。Unsplash / Pexels の写真は各社のガイドラインに従ってクレジットを表示してください(エディタ内に「写真のクレジット」表示があります)。
+- **写真**: Openverse・Wikimedia Commons(CC0 / パブリックドメインのみ)、Picsum、キーを設定した場合は Unsplash / Pexels / Pixabay(Pixabay Content License)。Unsplash / Pexels / Pixabay の写真は各社のガイドラインに従ってクレジットを表示してください(エディタ内に「写真のクレジット」表示があります)。
 - **動画・音楽**: 動画は Wikimedia Commons(CC0 / パブリックドメイン)、音楽・効果音は Openverse(CC0 / パブリックドメイン / CC BY。CC BY はクレジット表示)。自分で取り込む素材の権利は自分で確認してください。
 - **フォント**: Google Fonts から実行時に読み込みます(同梱しません。OFL 等)。
 

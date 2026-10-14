@@ -14,7 +14,8 @@ export interface Env {
   GOOGLE_CLIENT_SECRET?: string
   UNSPLASH_ACCESS_KEY?: string
   PEXELS_API_KEY?: string
-  /** '1' なら公開デモ: ログイン・クラウド保存・共有・写真中継を止める(画面はブラウザ内保存だけで動く) */
+  PIXABAY_API_KEY?: string
+  /** '1' なら公開デモ: ログイン・クラウド保存・共有・写真中継を止める(Pixabay だけはキーがあれば使える)(画面はブラウザ内保存だけで動く) */
   DEMO?: string
 }
 
