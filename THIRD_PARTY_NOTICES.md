@@ -32,7 +32,7 @@ irodori 本体は [MIT](LICENSE)(Copyright (c) 2026 いと)です。このファ
 
 ## 2. アイコン・絵文字(`public/icons/`、約 131,661 点)
 
-`scripts/build-icons.mjs` が Iconify JSON パッケージから生成します。許可リスト(MIT / ISC / Apache-2.0 / CC0-1.0 / OFL-1.1)外のライセンスだと生成が失敗します(CC BY・CC BY-SA のセットは採用していません)。商標・ブランドロゴ系のセット(simple-icons 等)も採用していません。一部のセットは重複を避けるため名前で絞って採用しています(絞り込みは `scripts/build-icons.mjs` の `skip`)。下表は `public/icons/index.json` の記載です。
+`scripts/build-icons.mjs` が Iconify JSON パッケージから生成します。許可リスト(MIT / ISC / Apache-2.0 / CC0-1.0 / OFL-1.1)外のライセンスだと生成が失敗します(CC BY・CC BY-SA のセットは採用していません)。ブランドロゴ専用のセット(simple-icons 等)は採用していませんが、汎用セット(mdi・bi・carbon など)にも企業・サービスのロゴ(Google・YouTube・GitHub など)が含まれます。**アイコンのライセンスは図柄の著作権についてのもので、ロゴの商標の使用を許可するものではありません。**ロゴを使うときは各社のブランドガイドラインに従ってください。一部のセットは重複を避けるため名前で絞って採用しています(絞り込みは `scripts/build-icons.mjs` の `skip`)。下表は `public/icons/index.json` の記載です。
 
 | セット ID | 作者 | ライセンス | 点数 | 取得元パッケージ | 上流 |
 | --- | --- | --- | --- | --- | --- |

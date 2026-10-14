@@ -5,12 +5,12 @@ import * as Y from 'yjs'
 import * as syncProtocol from 'y-protocols/sync'
 import * as encoding from 'lib0/encoding'
 import * as decoding from 'lib0/decoding'
-import { HttpError, json, randomBytes, toBase64Url, type Env } from './util'
+import { HttpError, json, randomBytes, sniffOk, toBase64Url, type Env } from './util'
 
-const ROOM_RE = /^[A-Za-z0-9_-]{22,64}$/
+const ROOM_RE = /^[A-Za-z0-9_-]{24}$/ // 作成時は 18 バイト = 24 文字。それ以外の名前では Durable Object を起こさない
 const ASSET_ID_RE = /^[A-Za-z0-9_][A-Za-z0-9_.-]{0,99}$/
 /** 画像と(後で使う)動画・音声だけ */
-const MIME_RE = /^(image\/[a-z0-9.+-]{1,40}|video\/mp4|video\/webm|audio\/mpeg|audio\/ogg|audio\/wav)$/
+const MIME_RE = /^(image\/(png|jpeg|webp|gif|svg\+xml)|video\/mp4|video\/webm|audio\/mpeg|audio\/ogg|audio\/wav)$/
 
 const MAX_CONN = 20
 const MAX_MESSAGE = 2 * 1024 * 1024
@@ -60,10 +60,12 @@ export async function handleCollab(req: Request, env: Env, url: URL): Promise<Re
   }
   const m = /^\/api\/collab\/([^/]+)(?:\/(ws|assets)(?:\/([^/]+))?)?$/.exec(path)
   if (!m) throw new HttpError(404, '見つかりません')
-  const room = checkRoom(decodeURIComponent(m[1]))
+  const dec = (s: string) => { try { return decodeURIComponent(s) } catch { throw new HttpError(400, 'URL の形式が正しくありません') } }
+  const room = checkRoom(dec(m[1]))
   const stub = stubOf(env, room)
   if (!m[2]) {
     if (req.method !== 'GET') throw new HttpError(405, '許可されていない操作です')
+    await limit(env, req, 's')
     const st = await stub.status()
     if (!st.exists) throw new HttpError(404, '部屋が見つかりません(期限切れか、リンクが違います)')
     return json({ room, full: st.full })
@@ -73,11 +75,12 @@ export async function handleCollab(req: Request, env: Env, url: URL): Promise<Re
     // 別のサイトのページからの接続を断る(Origin は同一ホストのみ)
     const origin = req.headers.get('Origin')
     if (origin) { let host = ''; try { host = new URL(origin).host } catch { /* 不正 */ } if (host !== url.host) throw new HttpError(403, '不正なリクエストです') }
+    await limit(env, req, 's')
     return stub.fetch(req)
   }
   // assets
   if (!m[3]) throw new HttpError(404, '見つかりません')
-  const assetId = decodeURIComponent(m[3])
+  const assetId = dec(m[3])
   if (!ASSET_ID_RE.test(assetId)) throw new HttpError(400, '画像 ID の形式が正しくありません')
   const key = assetPrefix(room) + assetId
   if (req.method === 'GET') {
@@ -97,7 +100,7 @@ export async function handleCollab(req: Request, env: Env, url: URL): Promise<Re
   await limit(env, req, 'a')
   if (!(await stub.exists())) throw new HttpError(404, '部屋が見つかりません(期限切れか、リンクが違います)')
   const mime = (req.headers.get('Content-Type') ?? '').split(';')[0].trim().toLowerCase()
-  if (!MIME_RE.test(mime)) throw new HttpError(415, '対応していない形式です(画像のみ)')
+  if (!MIME_RE.test(mime)) throw new HttpError(415, '対応していない形式です(PNG / JPEG / WebP / GIF / SVG / MP4 / WebM / MP3 / OGG / WAV)')
   const len = Number(req.headers.get('Content-Length') ?? 0)
   if (!Number.isFinite(len) || len <= 0) throw new HttpError(411, '大きさ(Content-Length)が必要です')
   if (len > MAX_ASSET_BYTES) throw new HttpError(413, 'ファイルが大きすぎます(最大15MB)')
@@ -111,8 +114,12 @@ export async function handleCollab(req: Request, env: Env, url: URL): Promise<Re
   } while (cursor)
   if (count >= MAX_ROOM_ASSETS) throw new HttpError(413, 'この部屋の画像は上限(500 件)に達しています')
   if (bytes + len > MAX_ROOM_ASSET_BYTES) throw new HttpError(413, 'この部屋の画像の合計は上限(300MB)を超えます')
-  if (!req.body) throw new HttpError(400, '画像が空です')
-  await env.BUCKET.put(key, req.body, { httpMetadata: { contentType: mime } })
+  // 中身を読み、大きさと形式(先頭のバイト)を確かめてから置く(任意のファイル置き場にさせない)
+  const buf = new Uint8Array(await req.arrayBuffer())
+  if (buf.length === 0) throw new HttpError(400, '画像が空です')
+  if (buf.length > MAX_ASSET_BYTES || buf.length !== len) throw new HttpError(413, 'ファイルが大きすぎるか、大きさが合いません')
+  if (!sniffOk(mime, buf)) throw new HttpError(415, 'ファイルの中身が形式と一致しません')
+  await env.BUCKET.put(key, buf, { httpMetadata: { contentType: mime } })
   await stub.touch()
   return json({ ok: true })
 }
@@ -210,8 +217,17 @@ export class CollabRoom extends DurableObject<Env> {
     }
   }
 
+  /** 接続ごとの送信回数(10 秒あたり)。連打で無料枠を使い切られないように */
+  private rate = new WeakMap<WebSocket, { t: number; n: number; bytes: number }>()
+
   async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): Promise<void> {
     if (typeof message === 'string') return // 'ping' は自動応答。それ以外は無視
+    const now = Date.now()
+    let r = this.rate.get(ws)
+    if (!r || now - r.t > 10_000) { r = { t: now, n: 0, bytes: 0 }; this.rate.set(ws, r) }
+    r.n++; r.bytes += message.byteLength
+    // 普通の編集(カーソルは 10 回/秒まで)なら 10 秒で 300 回・10MB には届かない
+    if (r.n > 300 || r.bytes > 10 * 1024 * 1024) { this.sendError(ws, '送信が多すぎるため接続を切りました。少し待ってから開き直してください'); try { ws.close(4008, 'rate') } catch { /* 閉じ済み */ } return }
     if (message.byteLength > MAX_MESSAGE) { this.sendError(ws, 'データが大きすぎます(1 回に送れるのは 2MB までです)'); return }
     const u8 = new Uint8Array(message)
     try {

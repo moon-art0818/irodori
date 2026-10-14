@@ -87,7 +87,8 @@ export class Video extends FabricImage {
 
   /** 元動画の長さ(秒) */
   get sourceDuration(): number { const v = this.video; return v && isFinite(v.duration) ? v.duration : 0 }
-  start(): number { return Math.max(0, Math.min(this.trimStart ?? 0, this.sourceDuration || Infinity)) }
+  // 共同編集の相手や壊れたファイルが数値以外を書いても NaN にならないようにする
+  start(): number { const t = Number(this.trimStart); return Math.max(0, Math.min(Number.isFinite(t) ? t : 0, this.sourceDuration || Infinity)) }
   end(): number {
     const d = this.sourceDuration
     const e = this.trimEnd > 0 ? this.trimEnd : d

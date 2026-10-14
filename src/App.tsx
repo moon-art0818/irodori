@@ -33,7 +33,7 @@ function Routes() {
   if (m) return <Editor key={m[1]} docId={m[1]} />
   const sh = hash.match(/^#\/s\/([\w-]+)/)
   if (sh) return <ShareView key={sh[1]} shareId={sh[1]} />
-  const cj = hash.match(/^#\/c\/([\w-]{22,64})/)
+  const cj = hash.match(/^#\/c\/([\w-]{24})(?![\w-])/)
   if (cj) return <CollabJoin key={cj[1]} room={cj[1]} />
   return <Home />
 }

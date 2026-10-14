@@ -80,7 +80,7 @@ export default {
       // 写真検索も IP ごとに制限(外部 API の回数枠を守る)
       // Google ログインの開始・戻り、Unsplash のダウンロード通知も IP ごとに制限
       if ((url.pathname.startsWith('/api/auth/google/') || url.pathname === '/api/photos/unsplash-download') && env.AUTH_LIMIT && !(await env.AUTH_LIMIT.limit({ key: 'g:' + (req.headers.get('CF-Connecting-IP') ?? 'local') })).success) throw new HttpError(429, '操作が多すぎます。少し待ってからお試しください')
-      if (url.pathname === '/api/photos/search' && env.AUTH_LIMIT && !(await env.AUTH_LIMIT.limit({ key: 'photo:' + (req.headers.get('CF-Connecting-IP') ?? 'local') })).success) throw new HttpError(429, '検索が多すぎます。少し待ってからお試しください')
+      if ((url.pathname === '/api/photos/search' || url.pathname === '/api/videos/search') && env.AUTH_LIMIT && !(await env.AUTH_LIMIT.limit({ key: 'photo:' + (req.headers.get('CF-Connecting-IP') ?? 'local') })).success) throw new HttpError(429, '検索が多すぎます。少し待ってからお試しください')
       if ((url.pathname.startsWith('/api/auth/') || url.pathname.startsWith('/api/passkeys/')) && req.method === 'POST') {
         const ip = req.headers.get('CF-Connecting-IP') ?? 'local'
         if (env.AUTH_LIMIT && !(await env.AUTH_LIMIT.limit({ key: ip })).success) throw new HttpError(429, '操作が多すぎます。少し待ってからもう一度お試しください')

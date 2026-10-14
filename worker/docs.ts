@@ -2,7 +2,7 @@
 import type { DesignDoc } from '../src/editor/types'
 import { DEFAULT_QUOTA_BYTES, MAX_ASSET_BYTES, type DocMeta, type PutDocBody } from '../src/api/contract'
 import { requireUser, usedBytes, getSessionUser } from './auth'
-import { HttpError, type Env, fromBase64Url, json, randomId, readJson } from './util'
+import { HttpError, type Env, fromBase64Url, json, randomId, readJson, sniffOk } from './util'
 
 const MAX_DOC_BYTES = 20 * 1024 * 1024
 const MAX_THUMB_BYTES = 1024 * 1024
@@ -255,22 +255,6 @@ export async function getThumb(req: Request, env: Env, docId: string): Promise<R
 
 // ---- 画像アセット ----
 
-function sniffOk(mime: string, b: Uint8Array): boolean {
-  const eq = (off: number, s: string) => [...s].every((c, i) => b[off + i] === c.charCodeAt(0))
-  switch (mime) {
-    case 'image/png': return b[0] === 0x89 && eq(1, 'PNG')
-    case 'image/jpeg': return b[0] === 0xff && b[1] === 0xd8
-    case 'image/gif': return eq(0, 'GIF8')
-    case 'image/webp': return eq(0, 'RIFF') && eq(8, 'WEBP')
-    case 'image/svg+xml': return new TextDecoder().decode(b.subarray(0, Math.min(b.length, 4096))).includes('<svg')
-    case 'video/mp4': return eq(4, 'ftyp')
-    case 'video/webm': return b[0] === 0x1a && b[1] === 0x45 && b[2] === 0xdf && b[3] === 0xa3
-    case 'audio/mpeg': return eq(0, 'ID3') || (b[0] === 0xff && (b[1] & 0xe0) === 0xe0)
-    case 'audio/ogg': return eq(0, 'OggS')
-    case 'audio/wav': return eq(0, 'RIFF') && eq(8, 'WAVE')
-    default: return false
-  }
-}
 
 export async function postAsset(req: Request, env: Env): Promise<Response> {
   const u = await requireUser(req, env)

@@ -22,7 +22,7 @@ const PORT = Number(arg('--port') ?? process.env.PORT ?? 4600)
 const HOST = process.env.HOST ?? '127.0.0.1'
 for (const d of [DIR, ASSETS, EXPORTS]) fs.mkdirSync(d, { recursive: true })
 
-const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif', '.woff2': 'font/woff2', '.wasm': 'application/wasm', '.pdf': 'application/pdf', '.mp4': 'video/mp4', '.webm': 'video/webm', '.mp3': 'audio/mpeg', '.ogg': 'audio/ogg', '.wav': 'audio/wav' }
+const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif', '.woff2': 'font/woff2', '.wasm': 'application/wasm', '.pdf': 'application/pdf', '.mp4': 'video/mp4', '.webm': 'video/webm', '.mp3': 'audio/mpeg', '.ogg': 'audio/ogg', '.wav': 'audio/wav', '.mov': 'video/quicktime', '.m4a': 'audio/mp4' }
 const ID_RE = /^[\w\-.぀-ヿ㐀-鿿]{1,120}$/ // ファイル名に使える id(日本語可・パス区切り不可)
 
 const json = (res, status, body) => { res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(body)) }
@@ -189,7 +189,7 @@ const server = http.createServer(async (req, res) => {
     }
     if (p === '/local/assets' && req.method === 'POST') {
       const buf = await readBody(req, 100 * 1024 * 1024) // 動画も置けるように(画面側の上限も 100MB)
-      const ext = { 'image/png': '.png', 'image/jpeg': '.jpg', 'image/webp': '.webp', 'image/gif': '.gif', 'image/svg+xml': '.svg', 'video/mp4': '.mp4', 'video/webm': '.webm', 'audio/mpeg': '.mp3', 'audio/ogg': '.ogg', 'audio/wav': '.wav' }[String(req.headers['content-type'] ?? '').split(';')[0].trim()] ?? '.bin'
+      const ext = { 'image/png': '.png', 'image/jpeg': '.jpg', 'image/webp': '.webp', 'image/gif': '.gif', 'image/svg+xml': '.svg', 'video/mp4': '.mp4', 'video/webm': '.webm', 'audio/mpeg': '.mp3', 'audio/ogg': '.ogg', 'audio/wav': '.wav', 'video/quicktime': '.mov', 'audio/mp4': '.m4a', 'audio/x-m4a': '.m4a' }[String(req.headers['content-type'] ?? '').split(';')[0].trim()] ?? '.bin'
       const id = crypto.randomUUID() + ext
       fs.writeFileSync(path.join(ASSETS, id), buf)
       return json(res, 200, { id })

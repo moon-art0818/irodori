@@ -44,17 +44,29 @@ const SRC_OK = /^https:\/\/(images\.unsplash\.com|images\.pexels\.com)\//
 const DATA_OK = /^data:image\/(png|jpeg|webp|gif);/
 /** 他の人が書いた JSON を信用しない: 自分の画像(assetId)以外の外部 URL は読み込ませない(サーバー保存時と同じ規則) */
 const ASSET_OK = /^[A-Za-z0-9_][A-Za-z0-9_.-]{0,99}$/
-function sanitize(o: any): void {
-  if (Array.isArray(o)) { o.forEach(sanitize); return }
-  if (!o || typeof o !== 'object') return
+const MAX_DEPTH = 40
+const MAX_JSON_CHARS = 2_000_000
+const MAX_OBJECTS = 5000
+const urlOk = (v: string) => SRC_OK.test(v) || DATA_OK.test(v)
+/** 中身を検査して危ない所を消す。false = 丸ごと捨てるべき(深すぎる入れ子など) */
+function sanitize(o: any, depth = 0): boolean {
+  if (depth > MAX_DEPTH) return false
+  if (Array.isArray(o)) {
+    for (let i = 0; i < o.length; i++) if (!sanitize(o[i], depth + 1)) o[i] = null
+    return true
+  }
+  if (!o || typeof o !== 'object') return true
   if (o.assetId !== undefined && !(typeof o.assetId === 'string' && ASSET_OK.test(o.assetId))) delete o.assetId
-  if (typeof o.src === 'string' && (o.assetId || !(SRC_OK.test(o.src) || DATA_OK.test(o.src)))) delete o.src
-  for (const v of Object.values(o)) sanitize(v)
+  if (typeof o.src === 'string' && (o.assetId || !urlOk(o.src))) delete o.src
+  // 塗りのパターン(fill / stroke / 背景)は source の URL を読み込むので、外部 URL なら塗りごと捨てる
+  if (o.source !== undefined && !(typeof o.source === 'string' && urlOk(o.source))) return false
+  for (const k of Object.keys(o)) if (!sanitize(o[k], depth + 1)) o[k] = null
+  return true
 }
 
 function parse(s: unknown): any {
-  if (typeof s !== 'string') return undefined
-  try { return JSON.parse(s) } catch { return undefined }
+  if (typeof s !== 'string' || s.length > MAX_JSON_CHARS) return undefined
+  try { return JSON.parse(s) } catch { return undefined } // 深すぎる入れ子は通ってしまうので、使う側で sanitize(深さ上限)を通す
 }
 
 /** 並び順: order にある物を順に、order に無いが objs にある物は末尾に id 順 */
@@ -70,18 +82,25 @@ function readIds(m: YPage): string[] {
 }
 
 export function readPage(m: YPage): PageData {
-  const top = parse(m.get('top'))
-  sanitize(top) // 背景画像などに外部 URL を仕込まれても読み込まない
+  let top = parse(m.get('top'))
+  if (!sanitize(top)) top = undefined // 背景画像などに外部 URL を仕込まれても読み込まない
   const objs = m.get('objs') as Y.Map<string> | undefined
   const objects: any[] = []
-  for (const id of readIds(m)) {
+  for (const id of readIds(m).slice(0, MAX_OBJECTS)) {
     const o = parse(objs?.get(id))
     if (!o || typeof o !== 'object' || Array.isArray(o)) continue
+    if (!sanitize(o)) continue
     o.id = id
-    sanitize(o)
     objects.push(o)
   }
   return { id: String(m.get('id')), json: { ...(top && typeof top === 'object' ? top : {}), objects } }
+}
+
+/** 印刷サイズ(mm)。数値 2 つだけを取り出す */
+function readPrint(v: unknown): { mmW: number; mmH: number } | undefined {
+  const p = parse(v)
+  const ok = (x: unknown) => typeof x === 'number' && Number.isFinite(x) && x > 0 && x <= 5000
+  return p && typeof p === 'object' && ok(p.mmW) && ok(p.mmH) ? { mmW: p.mmW, mmH: p.mmH } : undefined
 }
 
 /** 他の人が書いた BGM の設定を検査して読む(素材 id と https のリンク以外は捨てる) */
@@ -116,7 +135,7 @@ export function readDoc(ydoc: Y.Doc): Pick<DesignDoc, 'name' | 'width' | 'height
   if (pages.length === 0) return null
   const meta = ydoc.getMap<any>('meta')
   const num = (v: unknown, d: number) => (typeof v === 'number' && Number.isFinite(v) && v > 0 && v <= 10000 ? v : d)
-  const print = parse(meta.get('print'))
+  const print = readPrint(meta.get('print'))
   return {
     name: typeof meta.get('name') === 'string' && meta.get('name') ? meta.get('name') : '共同編集のデザイン',
     width: num(meta.get('width'), 1080),
@@ -437,6 +456,11 @@ export class CollabBinding {
 
   // ---- 部屋 → 手元
   private onTxn = (txn: Y.Transaction) => {
+    // 壊れたデータを受け取っても、以後の同期が止まらないようにする
+    try { this.handleTxn(txn) } catch (e) { console.error('共同編集: 受け取った変更を反映できませんでした', e) }
+  }
+
+  private handleTxn(txn: Y.Transaction) {
     if (txn.origin === LOCAL || txn.origin === INIT || !this.ready || this.destroyed) return
     let metaCh = false, structural = false
     const ch = new Set<string>()
@@ -456,7 +480,7 @@ export class CollabBinding {
       const m = this.meta
       if (typeof m.get('name') === 'string') d.name = m.get('name')
       for (const k of ['width', 'height'] as const) { const v = m.get(k); if (typeof v === 'number' && v > 0 && v <= 10000) d[k] = v }
-      const print = parse(m.get('print'))
+      const print = readPrint(m.get('print'))
       if (print && typeof print === 'object') d.print = print; else delete d.print
       const audio = readAudio(m.get('audio'))
       if (audio) d.audio = audio; else delete d.audio

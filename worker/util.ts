@@ -87,3 +87,21 @@ export function parseCookies(req: Request): Record<string, string> {
   }
   return out
 }
+
+/** 先頭のバイト列が、名乗っている形式(Content-Type)と一致するか */
+export function sniffOk(mime: string, b: Uint8Array): boolean {
+  const eq = (off: number, s: string) => [...s].every((c, i) => b[off + i] === c.charCodeAt(0))
+  switch (mime) {
+    case 'image/png': return b[0] === 0x89 && eq(1, 'PNG')
+    case 'image/jpeg': return b[0] === 0xff && b[1] === 0xd8
+    case 'image/gif': return eq(0, 'GIF8')
+    case 'image/webp': return eq(0, 'RIFF') && eq(8, 'WEBP')
+    case 'image/svg+xml': return new TextDecoder().decode(b.subarray(0, Math.min(b.length, 4096))).includes('<svg')
+    case 'video/mp4': return eq(4, 'ftyp')
+    case 'video/webm': return b[0] === 0x1a && b[1] === 0x45 && b[2] === 0xdf && b[3] === 0xa3
+    case 'audio/mpeg': return eq(0, 'ID3') || (b[0] === 0xff && (b[1] & 0xe0) === 0xe0)
+    case 'audio/ogg': return eq(0, 'OggS')
+    case 'audio/wav': return eq(0, 'RIFF') && eq(8, 'WAVE')
+    default: return false
+  }
+}

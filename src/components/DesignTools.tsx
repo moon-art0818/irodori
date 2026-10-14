@@ -105,6 +105,8 @@ function PdfTool() {
       const boxes = r.pages.reduce((a, p) => a + p.textCount, 0)
       const scanned = r.pages.filter((p) => p.scanned).length
       toast.success(`${r.pages.length} ページを読み込みました` + (mode === 'text' ? `(編集できる文字 ${boxes} 個)` : ''))
+      const heavy = r.pages.filter((p) => !p.scanned && p.textCount === 0 && p.keptInImage > 3000).length
+      if (mode === 'text' && heavy) toast.info(`${heavy} ページは文字が多すぎるため(地図・図面など)、画像として取り込みました`)
       if (mode === 'text' && scanned) toast.info(scanned === r.pages.length ? '文字が見つからなかったため(スキャンされた PDF など)、画像として取り込みました' : `${scanned} ページは文字が無い画像のため、画像として取り込みました`)
       location.hash = '#/d/' + d.id
     } catch (e: any) { toast.error('PDF を読み込めませんでした: ' + (e?.message ?? e)) }

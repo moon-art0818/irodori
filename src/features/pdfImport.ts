@@ -122,7 +122,10 @@ export async function importPDF(
       let objects: any[] = []
       let keptInImage = 0
       let noText: ReturnType<typeof mk> | null = null
-      if (mode === 'text' && raw.length) {
+      // 文字片が多すぎるページ(地図・図面など)は、まとめる処理が重くなり固まるので画像のまま取り込む
+      const MAX_TEXT_ITEMS = 3000
+      if (mode === 'text' && raw.length > MAX_TEXT_ITEMS) keptInImage = raw.length
+      if (mode === 'text' && raw.length && raw.length <= MAX_TEXT_ITEMS) {
         // 文字を描かない描画
         noText = mk()
         noText.x.fillText = () => {}

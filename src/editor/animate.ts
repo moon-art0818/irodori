@@ -165,9 +165,11 @@ export async function exportVideo(
     for (let i = 0; i < n; i++) {
       const scene = await next
       if (i + 1 < n) next = mk(i + 1) // 次ページはこのページの再生中に読み込む
-      const pageSec = opts.fitVideo
-        ? Math.max(opts.pageSeconds, ...scene.videos.filter((v) => !v.loop).map((v) => v.clipLength))
-        : opts.pageSeconds
+      // 動画に合わせても 1 ページ最大 60 秒(実時間で録画するので、長い動画で終わらなくならないように)
+      const MAX_PAGE_SEC = 60
+      const clipLens = scene.videos.filter((v) => !v.loop).map((v) => v.clipLength).filter((x) => Number.isFinite(x))
+      const want = opts.fitVideo ? Math.max(opts.pageSeconds, ...clipLens) : opts.pageSeconds
+      const pageSec = Math.min(MAX_PAGE_SEC, Number.isFinite(want) && want > 0 ? want : 3)
       scene.duration = Math.min(scene.duration, pageSec * 0.7)
       try {
         // 動画: 音を混ぜ出力につなぎ、trimStart から再生する
