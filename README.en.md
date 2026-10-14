@@ -54,7 +54,7 @@ Only what is implemented in the code is listed.
 - **PDF import**: by default pages are imported with editable text, as a new design. Text becomes text boxes (vertical text becomes vertical text boxes), and shapes and images come in as a background image with the text removed. "Import as image" is also available. Pages with more than 3,000 text fragments (maps, drawings) and scanned PDFs become images. Typefaces are replaced with a similar Japanese/Latin font (not the original)
 
 **Assets**
-- About 131,000 icons and illustrations from 46 sets (MIT / Apache-2.0 etc. only; licenses below)
+- About 131,000 icons and illustrations from 45 sets (MIT, Apache-2.0 and ISC only; licenses below)
 - Fonts: all 1,950 Google Fonts families (68 with Japanese support), searchable from the font picker
 - 870 patterns, gradients, blobs and decorations (made in-house)
 - Photo search: Openverse and Wikimedia Commons (CC0 / public domain only), Picsum, and Unsplash / Pexels if you configure keys on the server version
