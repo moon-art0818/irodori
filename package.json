@@ -9,6 +9,7 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "icons": "node scripts/build-icons.mjs",
+    "fonts": "node scripts/build-fonts.mjs",
     "sync-slides": "node scripts/sync-slide-studio.mjs",
     "agent": "npm run build && node agent/server.mjs",
     "agent:serve": "node agent/server.mjs",

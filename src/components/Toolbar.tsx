@@ -13,7 +13,7 @@ import { VText } from '../editor/vtext'
 import { TEXT_EFFECTS, applyTextEffect, detectTextEffect } from '../features/textEffects'
 import { BLEND_MODES, applyBlendMode, getBlendMode } from '../features/blend'
 import type { EditorCore } from '../editor/core'
-import { FONTS } from '../data/fonts'
+import { FontPicker } from './FontPicker'
 import { ColorButton, usePopover } from './ColorPicker'
 
 function Pop({ label, icon, children, title }: { label?: string; icon?: React.ReactNode; children: React.ReactNode; title: string }) {
@@ -120,9 +120,7 @@ function TextControls({ ed, t, docColors }: { ed: EditorCore; t: Textbox; docCol
   const nextAlign = aligns[(aligns.findIndex((a) => a[0] === t.textAlign) + 1) % aligns.length]
   return (
     <>
-      <select className="font-select" value={t.fontFamily} onChange={(e) => ed.setFont(e.target.value)} style={{ fontFamily: t.fontFamily }}>
-        {FONTS.map((f) => <option key={f.family} value={f.family} style={{ fontFamily: f.family }}>{f.label}</option>)}
-      </select>
+      <FontPicker value={t.fontFamily} onChange={(f) => ed.setFont(f)} />
       <div className="size-ctl">
         <button className="tb-btn" onClick={() => setSize(size - 2)} title="小さく"><Minus size={14} /></button>
         <input className="num" type="number" value={size} onChange={(e) => setSize(+e.target.value)} />
@@ -419,9 +417,7 @@ function CurvedControls({ ed, docColors }: { ed: EditorCore; docColors: string[]
   return (
     <>
       <input className="curve-text" value={text} onChange={(e) => setText(e.target.value)} onBlur={() => text !== spec.text && apply({})} onKeyDown={(e) => { if (e.key === 'Enter') apply({}) }} />
-      <select className="font-select" value={spec.fontFamily} onChange={(e) => apply({ fontFamily: e.target.value })}>
-        {FONTS.map((f) => <option key={f.family} value={f.family}>{f.label}</option>)}
-      </select>
+      <FontPicker value={spec.fontFamily} onChange={(f) => apply({ fontFamily: f })} />
       <ColorButton title="文字色" value={spec.fill} extra={docColors} icon={<span className="a-ico">A</span>} onPick={(c) => apply({ fill: c })} />
       <Pop title="曲がり" label="曲がり">
         <Slider label="曲がり" value={curve} min={-100} max={100} onChange={setCurve} onCommit={() => apply({ curve })} />
@@ -439,9 +435,7 @@ function VTextControls({ ed, v, docColors }: { ed: EditorCore; v: VText; docColo
   return (
     <>
       <button className="tb-btn" title="文字を編集(ダブルクリックでも可)" onClick={() => ed.onEditVText?.(v)}><span>文字を編集</span></button>
-      <select className="font-select" value={v.fontFamily} onChange={async (e) => { await loadFonts([[e.target.value, v.text]]); ed.setProp({ fontFamily: e.target.value }) }} style={{ fontFamily: v.fontFamily }}>
-        {FONTS.map((f) => <option key={f.family} value={f.family} style={{ fontFamily: f.family }}>{f.label}</option>)}
-      </select>
+      <FontPicker value={v.fontFamily} onChange={async (f) => { await loadFonts([[f, v.text]]); ed.setProp({ fontFamily: f }) }} />
       <div className="size-ctl">
         <button className="tb-btn" onClick={() => setSize(size - 2)} title="小さく"><Minus size={14} /></button>
         <input className="num" type="number" value={size} onChange={(e) => setSize(+e.target.value)} />

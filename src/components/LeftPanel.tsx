@@ -193,26 +193,51 @@ function ElementsTab({ ed }: { ed: EditorCore }) {
   )
 }
 
-/** アイコン・イラスト(データ層は src/data/icons.ts) */
+/** アイコン・イラスト(データ層は src/data/icons.ts)。セットは 40 超あるので、検索の範囲を選べる:
+ *  core = おすすめセット横断(index.json の core: true)/ all = 全セット横断(重い・段階的に表示)/ セット ID = そのセットだけ */
 function IconsSection({ ed, query }: { ed: EditorCore; query: string }) {
   const [sets, setSets] = useState<any[]>([])
   const [items, setItems] = useState<any[]>([])
-  const [setId, setSetId] = useState<string>('')
+  const [scope, setScope] = useState<string>('core')
+  const [limit, setLimit] = useState(120)
+  const [progress, setProgress] = useState('')
   const [err, setErr] = useState('')
   const mod = useRef<any>(null)
   useEffect(() => {
-    import('../data/icons').then(async (m) => { mod.current = m; const idx = await m.loadIconIndex(); setSets(idx); setSetId(idx[0]?.id ?? '') }).catch(() => setErr('アイコンを読み込めませんでした'))
+    import('../data/icons').then(async (m) => { mod.current = m; setSets(await m.loadIconIndex()) }).catch(() => setErr('アイコンを読み込めませんでした'))
   }, [])
+  useEffect(() => { setLimit(120) }, [query, scope])
   useEffect(() => {
     const m = mod.current
-    if (!m || !setId) return
+    if (!m || !sets.length) return
     let alive = true
+    const browseId = scope === 'core' || scope === 'all' ? sets[0].id : scope
     const t = setTimeout(async () => {
-      const r = query ? await m.searchIcons(query, sets.map((s) => s.id), 120) : (await m.loadIconSet(setId)).slice(0, 120)
-      if (alive) setItems(r)
+      try {
+        setProgress('')
+        if (!query) { const all = await m.loadIconSet(browseId); if (alive) setItems(all.slice(0, limit)); return }
+        if (scope !== 'all') {
+          const ids = scope === 'core' ? sets.filter((x) => x.core).map((x) => x.id) : [scope]
+          const r = await m.searchIcons(query, ids, limit)
+          if (alive) setItems(r)
+          return
+        }
+        // 全セット: 小さいセットから順に読み込み、見つかった分を順次表示する
+        const order = [...sets].sort((x, y) => x.bytes - y.bytes)
+        const done: string[] = []
+        for (const x of order) {
+          if (!alive) return
+          setProgress(`全セットを検索中… ${done.length}/${order.length}`)
+          await m.loadIconSet(x.id)
+          done.push(x.id)
+          const r = await m.searchIcons(query, done, limit)
+          if (alive) setItems(r)
+        }
+        if (alive) setProgress('')
+      } catch { if (alive) setErr('アイコンを読み込めませんでした') }
     }, 200)
     return () => { alive = false; clearTimeout(t) }
-  }, [query, setId, sets])
+  }, [query, scope, sets, limit])
   const add = async (it: any) => {
     const m = mod.current
     const { svgToObject } = await import('../editor/svg')
@@ -223,13 +248,21 @@ function IconsSection({ ed, query }: { ed: EditorCore; query: string }) {
   if (err) return <p className="error">{err}</p>
   if (!sets.length) return null
   const m = mod.current
+  const total = sets.reduce((a, x) => a + x.count, 0)
   return (
     <div>
-      <div className="sec-title">{query ? `アイコン・イラストの検索結果(${items.length})` : 'アイコン・イラスト'}</div>
-      {!query && <div className="row wrap set-tabs">{sets.map((s) => <button key={s.id} className={'chip' + (s.id === setId ? ' on' : '')} onClick={() => setSetId(s.id)}>{s.name ?? s.label ?? s.id}</button>)}</div>}
+      <div className="sec-title">{query ? `アイコン・イラストの検索結果(${items.length})` : `アイコン・イラスト(全 ${total.toLocaleString()} 点)`}</div>
+      <select className="font-select" style={{ width: '100%', maxWidth: 'none', margin: '4px 0 8px' }} value={scope} onChange={(e) => setScope(e.target.value)} title="検索するセット">
+        <option value="core">おすすめセットを横断して検索</option>
+        <option value="all">全セットを横断して検索(初回は重い)</option>
+        <optgroup label="カラー・絵文字・イラスト">{sets.filter((x) => x.color).map((x) => <option key={x.id} value={x.id}>{x.name}({x.count.toLocaleString()})</option>)}</optgroup>
+        <optgroup label="線・塗り(色を変えられる)">{sets.filter((x) => !x.color).map((x) => <option key={x.id} value={x.id}>{x.name}({x.count.toLocaleString()})</option>)}</optgroup>
+      </select>
+      {progress && <p className="hint">{progress}</p>}
       <div className="icon-grid">
         {items.map((it) => <button key={it.set + it.name} className="icon-btn-big" title={it.name} draggable onDragStart={dragAdd(() => add(it))} onClick={() => add(it)} dangerouslySetInnerHTML={{ __html: m.iconSvg(it, it.color ? undefined : '#3f3f46') }} />)}
       </div>
+      {items.length >= limit && <button className="chip wide" onClick={() => setLimit(limit + 240)}>もっと見る</button>}
     </div>
   )
 }

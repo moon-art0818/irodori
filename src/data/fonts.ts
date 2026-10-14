@@ -69,3 +69,67 @@ export function googleFontsHref() {
   const fam = FONTS.map((f) => `family=${f.family.replace(/ /g, '+')}${f.weights.length > 1 || f.weights[0] !== 400 ? ':wght@' + f.weights.join(';') : ''}`).join('&')
   return `https://fonts.googleapis.com/css2?${fam}&display=swap`
 }
+
+// ---- Google Fonts 全カタログ(約 1,950 書体)。メタデータは scripts/build-fonts.mjs が fontCatalog.json に出力 ----
+// フォントファイルは同梱しない。使うときに fonts.googleapis.com から CSS を読む(OFL / Apache / Ubuntu Font Licence)。
+/** [名前, 分類(s ゴシック / m 明朝 / h 手書き / d ディスプレイ / c 等幅), 対応文字(ja,ko,cy,…), 太さ] */
+export type CatalogRow = [string, string, string, number[]]
+
+let catalogP: Promise<CatalogRow[]> | null = null
+export function loadFontCatalog(): Promise<CatalogRow[]> {
+  if (!catalogP) catalogP = import('./fontCatalog.json').then((m) => (m.default ?? m) as unknown as CatalogRow[])
+  return catalogP
+}
+
+const CURATED = new Set(FONTS.map((f) => f.family))
+const cssDone = new Map<string, Promise<void>>()
+
+function addLink(href: string): Promise<void> {
+  return new Promise((resolve) => {
+    const l = document.createElement('link')
+    l.rel = 'stylesheet'
+    l.href = href
+    l.onload = () => resolve()
+    l.onerror = () => resolve() // 失敗しても止めない(代替フォントで表示される)
+    document.head.appendChild(l)
+    setTimeout(resolve, 6000)
+  })
+}
+
+/** カタログの書体の @font-face CSS を(未読込なら)読み込む。既定 63 書体は main.tsx で読込済みなので何もしない */
+export function ensureFontCss(family: string): Promise<void> {
+  if (typeof document === 'undefined' || CURATED.has(family)) return Promise.resolve()
+  let p = cssDone.get(family)
+  if (!p) {
+    p = loadFontCatalog().then((cat) => {
+      const row = cat.find((r) => r[0] === family)
+      if (!row) return
+      const w = row[3]
+      const spec = `family=${family.replace(/ /g, '+')}:wght@${w.join(';')}`
+      return addLink(`https://fonts.googleapis.com/css2?${spec}&display=swap`)
+    }).catch(() => {})
+    cssDone.set(family, p)
+  }
+  return p
+}
+
+const previewDone = new Set<string>()
+/** 一覧のプレビュー用。指定した文字だけを含む軽量な CSS(数 KB)を読む */
+export function ensurePreviewCss(family: string, text: string) {
+  if (typeof document === 'undefined' || CURATED.has(family) || cssDone.has(family) || previewDone.has(family)) return
+  previewDone.add(family)
+  const t = [...new Set(text)].join('')
+  addLink(`https://fonts.googleapis.com/css2?family=${family.replace(/ /g, '+')}&text=${encodeURIComponent(t)}&display=swap`)
+}
+
+// document.fonts.load("700 32px "Family"") が呼ばれたとき、カタログの書体なら先に CSS を読み込む。
+// エディタ側(ensureFonts / loadFonts)は変更せずに、保存済みデザインを開いた時の書体復元も効かせるための仕組み。
+if (typeof document !== 'undefined' && document.fonts && !(document.fonts as any).__irodoriCatalog) {
+  const orig = document.fonts.load.bind(document.fonts)
+  ;(document.fonts as any).__irodoriCatalog = true
+  document.fonts.load = async (font: string, text?: string) => {
+    const fam = /["']([^"']+)["']/.exec(font)?.[1]
+    if (fam && !CURATED.has(fam)) await ensureFontCss(fam)
+    return orig(font, text)
+  }
+}
