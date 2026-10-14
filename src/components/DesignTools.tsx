@@ -93,22 +93,30 @@ function ReplaceTool({ getDoc, reload }: { getDoc: () => DesignDoc; reload: () =
 
 function PdfTool() {
   const [busy, setBusy] = useState('')
+  const [mode, setMode] = useState<'text' | 'image'>('text')
   const run = async (f: File) => {
     setBusy('読み込み中…')
     try {
       const { importPDF } = await import('../features/pdfImport')
-      const r = await importPDF(f, (done, total) => setBusy(`読み込み中… ${done}/${total}`))
+      const r = await importPDF(f, (done, total) => setBusy(`読み込み中… ${done}/${total}`), { mode })
       const d = createDoc(f.name.replace(/\.pdf$/i, ''), r.width, r.height)
       d.pages = r.pages.map((p, i) => ({ id: newPageId() + i, json: p.json }))
       d.updatedAt = await repo.put(d, { baseUpdatedAt: null })
-      toast.success(`${r.pages.length} ページを読み込みました`)
+      const boxes = r.pages.reduce((a, p) => a + p.textCount, 0)
+      const scanned = r.pages.filter((p) => p.scanned).length
+      toast.success(`${r.pages.length} ページを読み込みました` + (mode === 'text' ? `(編集できる文字 ${boxes} 個)` : ''))
+      if (mode === 'text' && scanned) toast.info(scanned === r.pages.length ? '文字が見つからなかったため(スキャンされた PDF など)、画像として取り込みました' : `${scanned} ページは文字が無い画像のため、画像として取り込みました`)
       location.hash = '#/d/' + d.id
     } catch (e: any) { toast.error('PDF を読み込めませんでした: ' + (e?.message ?? e)) }
     finally { setBusy('') }
   }
   return (
     <>
-      <p className="hint">PDF の各ページを画像として取り込み、新しいデザインを作ります(上に文字や図形を重ねて編集できます)。</p>
+      <p className="hint">PDF の各ページを取り込み、新しいデザインを作ります。「編集できる形」では文字がテキストボックスになり、背景(図・写真)はロックした画像になります。</p>
+      <div className="seg" style={{ alignSelf: 'flex-start' }}>
+        <label style={{ cursor: 'pointer', marginRight: 12 }}><input type="radio" name="pdfmode" checked={mode === 'text'} disabled={!!busy} onChange={() => setMode('text')} /> 文字を編集できる形で取り込む</label>
+        <label style={{ cursor: 'pointer' }}><input type="radio" name="pdfmode" checked={mode === 'image'} disabled={!!busy} onChange={() => setMode('image')} /> 画像として取り込む</label>
+      </div>
       <label className="primary-btn" style={{ cursor: 'pointer', alignSelf: 'flex-start' }}><FileUp size={14} />{busy || 'PDF を選ぶ'}
         <input type="file" accept="application/pdf,.pdf" hidden disabled={!!busy} onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) run(f) }} />
       </label>
