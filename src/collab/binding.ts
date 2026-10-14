@@ -11,7 +11,7 @@
 import * as Y from 'yjs'
 import { uid, type EditorCore } from '../editor/core'
 import { getAssetURL, setRemoteAssetFetcher } from '../editor/assets'
-import type { DesignDoc, PageData } from '../editor/types'
+import type { DesignAudio, DesignDoc, PageData } from '../editor/types'
 import type { CollabSession } from './session'
 
 /** 手元の操作による書き込みの origin(取り消しの対象) */
@@ -84,6 +84,19 @@ export function readPage(m: YPage): PageData {
   return { id: String(m.get('id')), json: { ...(top && typeof top === 'object' ? top : {}), objects } }
 }
 
+/** 他の人が書いた BGM の設定を検査して読む(素材 id と https のリンク以外は捨てる) */
+function readAudio(v: unknown): DesignAudio | undefined {
+  const a = parse(v)
+  if (!a || typeof a !== 'object' || typeof a.assetId !== 'string' || !ASSET_OK.test(a.assetId)) return undefined
+  const num = (x: unknown, d: number, max: number) => (typeof x === 'number' && Number.isFinite(x) && x >= 0 && x <= max ? x : d)
+  const c = a.credit && typeof a.credit === 'object' ? a.credit : undefined
+  const str = (x: unknown) => (typeof x === 'string' ? x.slice(0, 300) : undefined)
+  return {
+    assetId: a.assetId, title: str(a.title) ?? '', volume: num(a.volume, 0.6, 1), start: num(a.start, 0, 36000), fadeIn: num(a.fadeIn, 0, 60), fadeOut: num(a.fadeOut, 0, 60),
+    credit: c ? { source: str(c.source) ?? '', author: str(c.author), license: str(c.license), pageUrl: typeof c.pageUrl === 'string' && /^https:\/\//.test(c.pageUrl) ? c.pageUrl.slice(0, 500) : undefined } : undefined,
+  }
+}
+
 /** ページの並び: meta.pageOrder(JSON 配列・後勝ち)の順。そこに無いページは Y.Array の順で末尾に。
  *  並べ替えでページを入れ直すと、同時にそのページを編集していた人の変更が消えるので、並びは別に持つ */
 export function orderedPages(ydoc: Y.Doc): YPage[] {
@@ -98,7 +111,7 @@ export function orderedPages(ydoc: Y.Doc): YPage[] {
 }
 
 /** 部屋の内容から DesignDoc の中身を読む(部屋に入った人が手元のデザインを作るとき) */
-export function readDoc(ydoc: Y.Doc): Pick<DesignDoc, 'name' | 'width' | 'height' | 'print' | 'pages'> | null {
+export function readDoc(ydoc: Y.Doc): Pick<DesignDoc, 'name' | 'width' | 'height' | 'print' | 'audio' | 'pages'> | null {
   const pages = ydoc.getArray<YPage>('pages')
   if (pages.length === 0) return null
   const meta = ydoc.getMap<any>('meta')
@@ -109,6 +122,7 @@ export function readDoc(ydoc: Y.Doc): Pick<DesignDoc, 'name' | 'width' | 'height
     width: num(meta.get('width'), 1080),
     height: num(meta.get('height'), 1080),
     print: print && typeof print === 'object' ? print : undefined,
+    audio: readAudio(meta.get('audio')),
     pages: orderedPages(ydoc).map(readPage),
   }
 }
@@ -229,6 +243,7 @@ export class CollabBinding {
     const r = readDoc(this.ydoc)!
     d.name = r.name; d.width = r.width; d.height = r.height
     if (r.print) d.print = r.print; else delete d.print
+    if (r.audio) d.audio = r.audio; else delete d.audio
     d.pages = r.pages
     this.bases.clear()
     for (const m of this.pages.toArray()) this.bases.set(String(m.get('id')), baseFromY(m))
@@ -268,6 +283,9 @@ export class CollabBinding {
     set('height', doc.height)
     if (doc.print) set('print', JSON.stringify(doc.print))
     else if (this.meta.has('print')) this.meta.delete('print')
+    // BGM: 音声を部屋に送り終えてから書く(送信後に push し直される)
+    if (doc.audio) { if (!this.assetsPending({ assetId: doc.audio.assetId })) set('audio', JSON.stringify(doc.audio)) }
+    else if (this.meta.has('audio')) this.meta.delete('audio')
   }
 
   private yIds(): string[] { return this.pages.toArray().map((m) => String(m.get('id'))) }
@@ -440,6 +458,8 @@ export class CollabBinding {
       for (const k of ['width', 'height'] as const) { const v = m.get(k); if (typeof v === 'number' && v > 0 && v <= 10000) d[k] = v }
       const print = parse(m.get('print'))
       if (print && typeof print === 'object') d.print = print; else delete d.print
+      const audio = readAudio(m.get('audio'))
+      if (audio) d.audio = audio; else delete d.audio
     }
     if (structural || ch.size) {
       const cur = this.ed?.pageId

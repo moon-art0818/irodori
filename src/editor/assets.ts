@@ -43,7 +43,7 @@ export async function getAssetURL(id: string): Promise<string | null> {
     const path = isLocal() ? `/local/assets/${encodeURIComponent(id)}` : shareCtx ? `/api/share/${shareCtx}/assets/${encodeURIComponent(id)}` : `/api/assets/${encodeURIComponent(id)}`
     try {
       const r = await fetch(path, { credentials: 'same-origin' })
-      if (r.ok && (r.headers.get('content-type') ?? '').startsWith('image/')) {
+      if (r.ok && /^(image|video|audio)\//.test(r.headers.get('content-type') ?? '')) {
         blob = await r.blob()
         if (!shareCtx) await idbPut('assets', { id, blob, type: blob.type, createdAt: Date.now() })
       }
@@ -116,10 +116,22 @@ export const COLLAB_ASSET_BYTES = 15 * 1024 * 1024
 /** 共同編集の部屋が受け付ける動画・音声の形式(worker/collab.ts の MIME_RE と同じ) */
 const COLLAB_MEDIA_MIME = /^(video\/mp4|video\/webm|audio\/mpeg|audio\/ogg|audio\/wav)$/
 
-/** 動画・音声を端末の素材庫に置く。サーバー(画像専用)には上げない */
+/** 動画・音声を素材庫に置く。ローカル版は designs/assets/ に、ログイン中はクラウドにも上げる(画像と同じ) */
 export async function putMediaAsset(blob: Blob): Promise<{ id: string; url: string }> {
   if (blob.size > MAX_MEDIA_BYTES) throw new Error(`ファイルが大きすぎます(最大 ${Math.round(MAX_MEDIA_BYTES / 1048576)}MB)`)
-  const id = 'm_' + crypto.randomUUID()
+  let id = 'm_' + crypto.randomUUID()
+  const type = (blob.type || '').split(';')[0]
+  const { isLocal } = await import('../api/local')
+  const { currentUser } = await import('../api/session')
+  if (isLocal()) {
+    const r = await fetch('/local/assets', { method: 'POST', headers: { 'Content-Type': type || 'application/octet-stream' }, body: blob })
+    if (!r.ok) throw new Error('動画・音声を保存できませんでした')
+    id = (await r.json()).id
+  } else if (currentUser() && /^(video\/(mp4|webm)|audio\/(mpeg|ogg|wav))$/.test(type) && blob.size <= 95 * 1024 * 1024) {
+    // クラウドに上げられない形式(mov・m4a など)や大きすぎる物は、この端末にだけ置く
+    const { api } = await import('../api/client')
+    try { id = (await api.uploadAsset(type === blob.type ? blob : new Blob([blob], { type }))).id } catch { /* 端末にだけ置く */ }
+  }
   await idbPut('assets', { id, blob, type: blob.type, createdAt: Date.now() })
   const url = URL.createObjectURL(blob)
   urlCache.set(id, url)

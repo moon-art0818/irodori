@@ -7,7 +7,10 @@ import { HttpError, type Env, fromBase64Url, json, randomId, readJson } from './
 const MAX_DOC_BYTES = 20 * 1024 * 1024
 const MAX_THUMB_BYTES = 1024 * 1024
 const ID_RE = /^[A-Za-z0-9_-]{1,64}$/
-const ALLOWED_MIME = ['image/png', 'image/jpeg', 'image/webp', 'image/gif', 'image/svg+xml']
+const ALLOWED_MIME = ['image/png', 'image/jpeg', 'image/webp', 'image/gif', 'image/svg+xml', 'video/mp4', 'video/webm', 'audio/mpeg', 'audio/ogg', 'audio/wav']
+/** 動画・音声の 1 件の上限(Workers の受信上限 100MB より少し下) */
+const MAX_MEDIA_BYTES = 95 * 1024 * 1024
+const isMedia = (mime: string) => mime.startsWith('video/') || mime.startsWith('audio/')
 
 const docKey = (userId: string, docId: string) => `docs/${userId}/${docId}.json`
 const thumbKey = (docId: string) => `thumbs/${docId}.jpg`
@@ -260,6 +263,11 @@ function sniffOk(mime: string, b: Uint8Array): boolean {
     case 'image/gif': return eq(0, 'GIF8')
     case 'image/webp': return eq(0, 'RIFF') && eq(8, 'WEBP')
     case 'image/svg+xml': return new TextDecoder().decode(b.subarray(0, Math.min(b.length, 4096))).includes('<svg')
+    case 'video/mp4': return eq(4, 'ftyp')
+    case 'video/webm': return b[0] === 0x1a && b[1] === 0x45 && b[2] === 0xdf && b[3] === 0xa3
+    case 'audio/mpeg': return eq(0, 'ID3') || (b[0] === 0xff && (b[1] & 0xe0) === 0xe0)
+    case 'audio/ogg': return eq(0, 'OggS')
+    case 'audio/wav': return eq(0, 'RIFF') && eq(8, 'WAVE')
     default: return false
   }
 }
@@ -267,12 +275,14 @@ function sniffOk(mime: string, b: Uint8Array): boolean {
 export async function postAsset(req: Request, env: Env): Promise<Response> {
   const u = await requireUser(req, env)
   const mime = (req.headers.get('Content-Type') ?? '').split(';')[0].trim().toLowerCase()
-  if (!ALLOWED_MIME.includes(mime)) throw new HttpError(415, '対応していない画像形式です(PNG / JPEG / WebP / GIF / SVG)')
+  if (!ALLOWED_MIME.includes(mime)) throw new HttpError(415, '対応していない形式です(PNG / JPEG / WebP / GIF / SVG / MP4 / WebM / MP3 / OGG / WAV)')
+  const max = isMedia(mime) ? MAX_MEDIA_BYTES : MAX_ASSET_BYTES
+  const tooBig = isMedia(mime) ? '動画・音声が大きすぎます(最大95MB)' : '画像が大きすぎます(最大15MB)'
   const len = Number(req.headers.get('Content-Length') ?? 0)
-  if (len > MAX_ASSET_BYTES) throw new HttpError(413, '画像が大きすぎます(最大15MB)')
+  if (len > max) throw new HttpError(413, tooBig)
   const buf = new Uint8Array(await req.arrayBuffer())
   if (buf.length === 0) throw new HttpError(400, '画像が空です')
-  if (buf.length > MAX_ASSET_BYTES) throw new HttpError(413, '画像が大きすぎます(最大15MB)')
+  if (buf.length > max) throw new HttpError(413, tooBig)
   if (!sniffOk(mime, buf)) throw new HttpError(400, '画像の中身が形式と一致しません')
   if ((await usedBytes(env, u.id)) + buf.length > DEFAULT_QUOTA_BYTES) throw new HttpError(413, '保存容量の上限を超えています')
   const id = crypto.randomUUID()
