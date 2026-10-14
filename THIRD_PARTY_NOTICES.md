@@ -30,9 +30,9 @@ irodori 本体は [MIT](LICENSE)(Copyright (c) 2026 いと)です。このファ
 - `@huggingface/transformers` はブラウザ内の背景除去で使います。`cmdk`(コマンドパレット)・`sonner`(通知)・`@radix-ui/react-tooltip`(ツールチップ)は画面、`pptxgenjs` は PowerPoint 書き出し、`gifenc` は GIF 書き出し、`pdfjs-dist` は PDF 読み込みで使います。`@modelcontextprotocol/sdk` と `zod` は MCP サーバー(`agent/mcp.mjs`)で使っています(Node 側のみ。ブラウザ用の配布物には含まれません)。
 - 開発用(`devDependencies`: Vite、TypeScript、wrangler、oxlint、型定義など)は配布物に含まれません。
 
-## 2. アイコン・絵文字(`public/icons/`、約 29,384 点)
+## 2. アイコン・絵文字(`public/icons/`、約 131,661 点)
 
-`scripts/build-icons.mjs` が Iconify JSON パッケージから生成します。許可リスト(MIT / ISC / Apache-2.0 / CC0-1.0 / OFL-1.1)外のライセンスだと生成が失敗します。下表は `public/icons/index.json` の記載です。
+`scripts/build-icons.mjs` が Iconify JSON パッケージから生成します。許可リスト(MIT / ISC / Apache-2.0 / CC0-1.0 / OFL-1.1)外のライセンスだと生成が失敗します(CC BY・CC BY-SA のセットは採用していません)。商標・ブランドロゴ系のセット(simple-icons 等)も採用していません。一部のセットは重複を避けるため名前で絞って採用しています(絞り込みは `scripts/build-icons.mjs` の `skip`)。下表は `public/icons/index.json` の記載です。
 
 | セット ID | 作者 | ライセンス | 点数 | 取得元パッケージ | 上流 |
 | --- | --- | --- | --- | --- | --- |
@@ -46,8 +46,43 @@ irodori 本体は [MIT](LICENSE)(Copyright (c) 2026 いと)です。このファ
 | mdi | Pictogrammers | Apache-2.0 | 7638 | `@iconify-json/mdi`@1.2.3 | https://github.com/Templarian/MaterialDesign |
 | ri | Remix Design | Apache-2.0 | 3229 | `@iconify-json/ri`@1.2.10 | https://github.com/Remix-Design/RemixIcon |
 | bi | The Bootstrap Authors | MIT | 2084 | `@iconify-json/bi`@1.2.7 | https://github.com/twbs/icons |
+| noto-v1 | Google Inc | Apache-2.0 | 1272 | `@iconify-json/noto-v1`@1.2.5 | https://github.com/googlefonts/noto-emoji |
+| fluent-emoji-high-contrast | Microsoft Corporation | MIT | 1594 | `@iconify-json/fluent-emoji-high-contrast`@1.2.6 | https://github.com/microsoft/fluentui-emoji |
+| icon-park | ByteDance | Apache-2.0 | 2658 | `@iconify-json/icon-park`@1.2.4 | https://github.com/bytedance/IconPark |
+| icon-park-outline | ByteDance | Apache-2.0 | 2658 | `@iconify-json/icon-park-outline`@1.2.4 | https://github.com/bytedance/IconPark |
+| icon-park-solid | ByteDance | Apache-2.0 | 1970 | `@iconify-json/icon-park-solid`@1.2.4 | https://github.com/bytedance/IconPark |
+| icon-park-twotone | ByteDance | Apache-2.0 | 1947 | `@iconify-json/icon-park-twotone`@1.2.4 | https://github.com/bytedance/IconPark |
+| fluent-color | Microsoft Corporation | MIT | 196 | `@iconify-json/fluent-color`@1.2.21 | https://github.com/microsoft/fluentui-system-icons |
+| meteocons | Bas Milius | MIT | 450 | `@iconify-json/meteocons`@1.2.4 | https://github.com/basmilius/weather-icons |
+| marketeq | Marketeq | MIT | 590 | `@iconify-json/marketeq`@1.2.2 |  |
+| circle-flags | HatScripts | MIT | 696 | `@iconify-json/circle-flags`@1.2.12 | https://github.com/HatScripts/circle-flags |
+| flagpack | Yummygum | MIT | 256 | `@iconify-json/flagpack`@1.2.8 | https://github.com/Yummygum/flagpack-core |
+| material-symbols | Google | Apache-2.0 | 12693 | `@iconify-json/material-symbols`@1.2.95 | https://github.com/google/material-design-icons |
+| ic | Material Design Authors | Apache-2.0 | 2191 | `@iconify-json/ic`@1.2.4 | https://github.com/material-icons/material-icons |
+| fluent | Microsoft Corporation | MIT | 5189 | `@iconify-json/fluent`@1.2.60 | https://github.com/microsoft/fluentui-system-icons |
+| hugeicons | Hugeicons | MIT | 6091 | `@iconify-json/hugeicons`@1.2.35 | https://icon-sets.iconify.design/icon-sets/hugeicons/ |
+| iconmind | IconMind | MIT | 10574 | `@iconify-json/iconmind`@1.2.2 | https://github.com/Iconmind/iconmind |
+| iconoven | Appic Marketing | MIT | 9118 | `@iconify-json/iconoven`@1.2.1 | https://iconoven.com/icons |
+| keyline-icons | Keyline Icons | MIT | 4308 | `@iconify-json/keyline-icons`@1.2.15 | https://github.com/keyline-icons/keyline-icons |
+| reicon | REICON | MIT | 6590 | `@iconify-json/reicon`@1.2.6 | https://github.com/dqev/reicon |
+| energy-icons | Sam Passmore | MIT | 2922 | `@iconify-json/energy-icons`@1.2.1 | https://github.com/Sam-r-passmore/energy-icons |
+| glyphs | Goran Spasojevic | MIT | 2589 | `@iconify-json/glyphs`@1.2.0 | https://github.com/gorango/glyphs |
+| mingcute | MingCute Design | Apache-2.0 | 3336 | `@iconify-json/mingcute`@1.2.8 | https://github.com/Richard9394/MingCute |
+| carbon | IBM | Apache-2.0 | 2776 | `@iconify-json/carbon`@1.2.28 | https://github.com/carbon-design-system/carbon/tree/main/packages/icons |
+| iconoir | Luca Burgio | MIT | 1682 | `@iconify-json/iconoir`@1.2.12 | https://github.com/iconoir-icons/iconoir |
+| healthicons | Resolve to Save Lives | MIT | 1492 | `@iconify-json/healthicons`@1.2.13 | https://github.com/resolvetosavelives/healthicons |
+| mynaui | Praveen Juge | MIT | 2658 | `@iconify-json/mynaui`@1.2.19 | https://github.com/praveenjuge/mynaui-icons |
+| tdesign | TDesign | MIT | 2364 | `@iconify-json/tdesign`@1.2.19 | https://github.com/Tencent/tdesign-icons |
+| boxicons | Boxicons | MIT | 3768 | `@iconify-json/boxicons`@1.2.0 | https://github.com/box-icons/boxicons-core |
+| heroicons | Refactoring UI Inc | MIT | 648 | `@iconify-json/heroicons`@1.2.3 | https://github.com/tailwindlabs/heroicons |
+| ion | Ben Sperry | MIT | 1940 | `@iconify-json/ion`@1.2.7 | https://github.com/ionic-team/ionicons |
+| uil | Iconscout | Apache-2.0 | 1216 | `@iconify-json/uil`@1.2.3 | https://github.com/Iconscout/unicons |
+| ant-design | HeskeyBaozi | MIT | 698 | `@iconify-json/ant-design`@1.2.9 | https://github.com/ant-design/ant-design-icons |
+| gravity-ui | YANDEX LLC | MIT | 799 | `@iconify-json/gravity-ui`@1.2.14 | https://github.com/gravity-ui/icons/ |
+| pixelarticons | Gerrit Halfmann | MIT | 1306 | `@iconify-json/pixelarticons`@1.2.10 | https://github.com/halfmage/pixelarticons |
+| mage | MageIcons | Apache-2.0 | 1042 | `@iconify-json/mage`@1.2.4 | https://github.com/Mage-Icons/mage-icons |
 
-Apache-2.0 のセット(Noto、Firefox Emoji、Material Design Icons、Remix Icon)は、Apache License 2.0 の条件(ライセンス表示・変更の明示)に従って再配布しています。アイコン画像そのものをアプリ上で利用者のデザインに使うことは各ライセンスで許されていますが、各セットのライセンス全文は上流を参照してください。
+Apache-2.0 のセット(noto、fxemoji、mdi、ri、noto-v1、icon-park、icon-park-outline、icon-park-solid、icon-park-twotone、material-symbols、ic、mingcute、carbon、uil、mage)は、Apache License 2.0 の条件(ライセンス表示・変更の明示)に従って再配布しています。アイコン画像そのものをアプリ上で利用者のデザインに使うことは各ライセンスで許されていますが、各セットのライセンス全文は上流を参照してください。
 
 ## 3. 背景除去モデル
 
