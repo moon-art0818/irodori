@@ -8,14 +8,17 @@ const UTM = 'utm_source=irodori&utm_medium=referral'
 const PIXABAY_TTL = 24 * 3600_000 // Pixabay の利用条件: 検索結果は24時間キャッシュする
 const PIXABAY_MAX_BYTES = 100 * 1024 * 1024
 
-/** 中継してよい Pixabay の URL か(https://cdn.pixabay.com/photo/... か /video/... だけ)。違えば null */
+/** 中継してよい Pixabay の URL か。違えば null
+ *  - https://cdn.pixabay.com/photo/... と /video/...(プレビュー・動画)
+ *  - https://pixabay.com/get/...(写真の webformatURL / largeImageURL。24 時間だけ有効) */
 export function pixabayMediaUrl(raw: string): URL | null {
   if (typeof raw !== 'string' || raw.length > 600 || raw.includes('@') || raw.includes('\\') || /[\s\u0000-\u001f]/.test(raw)) return null
   let url: URL
   try { url = new URL(raw) } catch { return null }
-  if (url.protocol !== 'https:' || url.hostname !== 'cdn.pixabay.com' || url.port || url.username || url.password) return null
+  if (url.protocol !== 'https:' || url.port || url.username || url.password) return null
   if (url.search || url.hash) return null
-  if (!/^\/(photo|video)\/[A-Za-z0-9._\-/]+$/.test(url.pathname) || url.pathname.includes('..') || url.pathname.includes('//')) return null
+  const okPath = url.hostname === 'cdn.pixabay.com' ? /^\/(photo|video)\/[A-Za-z0-9._\-/]+$/ : url.hostname === 'pixabay.com' ? /^\/get\/[A-Za-z0-9._-]+$/ : null
+  if (!okPath || !okPath.test(url.pathname) || url.pathname.includes('..') || url.pathname.includes('//')) return null
   // 入力の文字列がそのまま正規化後の URL と同じこと(%2e などのすり抜け・ホストの書き換えを許さない)
   if (url.href !== raw) return null
   return url
@@ -53,7 +56,7 @@ export async function searchPhotos(req: Request, env: Env, ctx?: ExecutionContex
   const page = Math.max(1, Math.min(50, Number(u.searchParams.get('page')) || 1))
   if (!q) throw new HttpError(400, '検索語を入れてください')
   // 同じ検索は1時間 R2 に置いて使い回す(*.workers.dev では Cache API が効かないため)
-  const key = `cache/photos/${provider}/${page}/${encodeURIComponent(q.toLowerCase()).slice(0, 300)}.json`
+  const key = `cache/photos/${provider === 'pixabay' ? 'pixabay-v2' : provider}/${page}/${encodeURIComponent(q.toLowerCase()).slice(0, 300)}.json`
   const cached = await cacheGet(env, key, provider === 'pixabay' ? PIXABAY_TTL : 3600_000)
   if (cached) return cached
 
