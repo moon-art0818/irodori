@@ -28,6 +28,7 @@
     "fabric": "^7.4.0",
     "gifenc": "^1.0.3",
     "jspdf": "^4.2.1",
+    "lib0": "^0.2.119",
     "lucide-react": "^1.52.0",
     "pdfjs-dist": "^6.4.299",
     "pptxgenjs": "^4.0.1",
@@ -35,6 +36,8 @@
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "sonner": "^2.0.8",
+    "y-protocols": "^1.0.7",
+    "yjs": "^13.6.33",
     "zod": "^4.6.5"
   },
   "devDependencies": {
