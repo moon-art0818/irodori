@@ -16,6 +16,10 @@ Object.assign(FabricObject.ownDefaults, {
   // 回転は 45° ごとに吸い付く(±5°以内)
   snapAngle: 45, snapThreshold: 5,
 })
+// タッチ端末(指): ハンドルを大きく・当たり判定をさらに大きくする(PC のマウス操作は変えない)
+if (typeof matchMedia !== 'undefined' && (matchMedia('(pointer: coarse)').matches || matchMedia('(max-width: 760px)').matches)) {
+  Object.assign(FabricObject.ownDefaults, { cornerSize: 18, touchCornerSize: 44, padding: 6, borderScaleFactor: 2 })
+}
 // toObject で保存したい独自の値
 FabricObject.customProperties = ['id', 'name', 'assetId', 'locked', 'frame', 'chart', 'qr', 'table', 'vertical', 'curved', 'credit']
 

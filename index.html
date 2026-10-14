@@ -3,11 +3,18 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <!-- 外部サイトへ参照元を送らない(Hugging Face が *.workers.dev からの要求を拒否するため。プライバシー保護にもなる) -->
     <meta name="referrer" content="no-referrer" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <meta name="theme-color" content="#ffffff" />
+    <!-- iPhone / iPad: ホーム画面に追加したとき、アプリのように全画面で開く -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="irodori" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="format-detection" content="telephone=no" />
+    <link rel="apple-touch-icon" href="/app-icons/apple-touch-icon.png" />
     <meta name="description" content="irodori — ブラウザで使える無料のデザインツール。SNS画像・スライド・チラシ・名刺をテンプレートから作成。" />
     <title>irodori</title>
   </head>

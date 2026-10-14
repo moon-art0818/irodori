@@ -1,11 +1,13 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { ActiveSelection, Group } from 'fabric'
 import type { EditorCore } from '../editor/core'
 
 /** 右クリックメニュー */
 export function ContextMenu({ ed, x, y, onClose }: { ed: EditorCore; x: number; y: number; onClose: () => void }) {
+  const openedAt = useRef(performance.now())
   useEffect(() => {
-    const close = () => onClose()
+    // 長押しで開いた直後に指を離すと mousedown が来ることがあるので、開いてすぐは無視する
+    const close = (e: Event) => { if (e.type === 'mousedown' && performance.now() - openedAt.current < 700) return; onClose() }
     window.addEventListener('mousedown', close)
     window.addEventListener('wheel', close)
     window.addEventListener('keydown', close)
@@ -35,7 +37,8 @@ export function ContextMenu({ ed, x, y, onClose }: { ed: EditorCore; x: number; 
     ['貼り付け', '⌘V', () => ed.paste()],
     ['すべて選択', '⌘A', () => ed.selectAll()],
   ]
-  const W = 220, H = items.length * 30
+  const touch = matchMedia('(pointer: coarse)').matches
+  const W = 220, H = items.length * (touch ? 44 : 30)
   const left = Math.min(x, window.innerWidth - W - 8), top = Math.min(y, window.innerHeight - H - 8)
   return (
     <div className="ctx-menu" style={{ left, top, width: W }} onMouseDown={(e) => e.stopPropagation()} onContextMenu={(e) => e.preventDefault()}>

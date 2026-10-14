@@ -39,7 +39,11 @@ import { AnimatePanel } from './AnimatePanel'
 import { maybeSnapshot } from '../editor/versions'
 import { getBrand, brandSync, onBrandChange } from '../editor/brand'
 import { usePopover } from './ColorPicker'
-import { Scaling, History, Play, Clapperboard } from 'lucide-react'
+import { Scaling, History, Play, Clapperboard, MoreHorizontal } from 'lucide-react'
+import { useIsMobile, isMobileNow } from './mobile/useMobile'
+import { BottomSheet, MobileTabBar } from './mobile/BottomSheet'
+import { attachTouchGestures } from './mobile/gestures'
+import './mobile/mobile.css'
 
 const isTyping = (e: KeyboardEvent) => {
   const t = e.target as HTMLElement
@@ -62,7 +66,10 @@ export function Editor({ docId }: { docId: string }) {
   const [doc, setDoc] = useState<DesignDoc | null>(null)
   const [missing, setMissing] = useState(false)
   const [pageIdx, setPageIdx] = useState(0)
-  const [tab, setTab] = useState<Tab | null>('templates')
+  const isMobile = useIsMobile()
+  const [menuOpen, setMenuOpen] = useState(false) // スマホ: 上部バーの「…」メニュー
+  // スマホでは最初はシートを閉じて、キャンバスを広く見せる
+  const [tab, setTab] = useState<Tab | null>(() => (isMobileNow() ? null : 'templates'))
   const [, setVersion] = useState(0)
   const [saveState, setSaveState] = useState<'saved' | 'saving' | 'error'>('saved')
   const [thumbs, setThumbs] = useState<Record<string, string>>({})
@@ -211,7 +218,8 @@ export function Editor({ docId }: { docId: string }) {
   const fit = useCallback(() => {
     const ed = edRef.current, area = areaRef.current
     if (!ed || !area) return
-    const w = area.clientWidth - 96, h = area.clientHeight - 96
+    const pad = isMobileNow() ? 32 : 96 // スマホは余白を小さくして大きく見せる
+    const w = area.clientWidth - pad, h = area.clientHeight - pad
     // 非表示などで 0 のときは無視する(0 を通すと canvas が復帰しない)
     if (w <= 0 || h <= 0) return
     ed.setZoom(Math.min(w / ed.width, h / ed.height))
@@ -414,6 +422,19 @@ export function Editor({ docId }: { docId: string }) {
     return () => { window.removeEventListener('keydown', kd); window.removeEventListener('keyup', ku); area?.removeEventListener('mousedown', md, true); window.removeEventListener('mousemove', mm); window.removeEventListener('mouseup', mu) }
   }, [loaded])
 
+  // スマホ: ピンチ・2 本指の移動・長押し・ダブルタップ。範囲選択は指の移動と紛らわしいので切る
+  useEffect(() => {
+    const area = areaRef.current
+    if (!loaded || !isMobile || !area) return
+    const ed = edRef.current
+    if (ed) ed.canvas.selection = false
+    const off = attachTouchGestures(area, () => edRef.current)
+    return () => { off(); if (edRef.current) edRef.current.canvas.selection = true }
+  }, [loaded, isMobile])
+  // スマホ: オブジェクトを選んだら、ツール用のシートを閉じて選択中のツールバーを見せる
+  const hasSel = !!edRef.current?.active()
+  useEffect(() => { if (isMobile && hasSel) setTab(null) }, [isMobile, hasSel])
+
   // キーボードショートカット
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -584,8 +605,45 @@ export function Editor({ docId }: { docId: string }) {
   const ed = edRef.current
   const docColors = ed ? [...new Set([...brandSync().colors, ...collectColors(ed.toJSON())])].slice(0, 24) : []
 
+  // 上部バーの機能ボタン(PC: バーに並べる / スマホ: 「…」メニューの中に並べる)
+  const extras = (
+    <>
+      <button className="tb-btn" title="サイズを変更(マジックリサイズ)" onClick={() => { setMenuOpen(false); syncDoc(); flush(); setModal('resize') }}><Scaling size={18} /><span className="hide-sm">サイズ変更</span></button>
+      {ed && <DesignTools ed={ed} getDoc={syncDoc} gotoPage={gotoPage} reload={() => { const d = docRef.current!; const p = d.pages[pageIdx]; persist(); ed.replaceCurrent(p.json); d.pages.forEach((x) => refreshThumb(x.id)) }} />}
+      <AnimateButton getDoc={syncDoc} pageIdx={pageIdx} onChange={persist} />
+      {isLocal() && <AskAIButton docId={doc.id} page={pageIdx + 1} />}
+      <button className="tb-btn" title="バージョン履歴" onClick={() => { setMenuOpen(false); syncDoc(); flush(); setModal('versions') }}><History size={18} /><span className="only-m">履歴</span></button>
+      <button className="tb-btn" title="プレゼンテーション(全画面)" onClick={() => { setMenuOpen(false); syncDoc(); setPresenting(true) }}><Play size={18} /><span className="hide-sm">プレゼン</span></button>
+      <ShareButton docId={doc.id} initialShareId={(doc as any).shareId ?? null} beforeShare={async () => { syncDoc(); dirty.current = true; await flush() }}
+        collab={isLocal() ? undefined : { room: collabRoom, busy: collabBusy, onStart: () => { void startCollab() }, onStop: stopCollab }} />
+    </>
+  )
+
   return (
     <div className="editor">
+      {isMobile ? (
+        <header className="topbar mobile">
+          <a className="tb-btn" href="#/" aria-label="ホームへ戻る"><ChevronLeft size={22} /></a>
+          <button className="tb-btn" aria-label="元に戻す" disabled={!ed?.canUndo()} onClick={() => ed?.undo()}><Undo2 size={20} /></button>
+          <button className="tb-btn" aria-label="やり直す" disabled={!ed?.canRedo()} onClick={() => ed?.redo()}><Redo2 size={20} /></button>
+          <span className={'save-state icon ' + saveState} aria-label={saveState === 'error' ? '保存できません' : saveState === 'saving' ? '保存中' : '保存済み'}>
+            {saveState === 'error' ? <CloudOff size={18} /> : <Cloud size={18} />}
+          </span>
+          <div className="tb-spacer" />
+          <DownloadButton getDoc={syncDoc} peekDoc={() => docRef.current!} currentPage={pageIdx} />
+          <button className={'tb-btn' + (menuOpen ? ' on' : '')} aria-label="メニュー" onClick={() => setMenuOpen(!menuOpen)}><MoreHorizontal size={22} /></button>
+          {menuOpen && <>
+            <div className="m-menu-back" onPointerDown={() => setMenuOpen(false)} />
+            <div className="m-menu">
+              <input className="doc-name" value={doc.name} onChange={(e) => rename(e.target.value)} aria-label="デザインの名前" />
+              <div className="m-menu-sub">{doc.width}×{doc.height}{doc.print ? ` (${doc.print.mmW}×${doc.print.mmH}mm)` : ''} ・ {saveState === 'error' ? '保存できません' : saveState === 'saving' ? '保存中…' : '保存済み'}</div>
+              {doc.audio && <AudioBar audio={doc.audio} onChange={setAudio} />}
+              {collab && myName && <CollabBar session={collab.session} selfName={myName} selfColor={colorFor(myName)} />}
+              <div className="m-menu-grid">{extras}</div>
+            </div>
+          </>}
+        </header>
+      ) : (
       <header className="topbar">
         <a className="tb-btn home-link" href="#/"><ChevronLeft size={18} />ホーム</a>
         <input className="doc-name" value={doc.name} onChange={(e) => rename(e.target.value)} />
@@ -598,16 +656,10 @@ export function Editor({ docId }: { docId: string }) {
         {doc.audio && <AudioBar audio={doc.audio} onChange={setAudio} />}
         {collab && myName && <CollabBar session={collab.session} selfName={myName} selfColor={colorFor(myName)} />}
         <div className="tb-spacer" />
-        <button className="tb-btn" title="サイズを変更(マジックリサイズ)" onClick={() => { syncDoc(); flush(); setModal('resize') }}><Scaling size={18} /><span className="hide-sm">サイズ変更</span></button>
-        {ed && <DesignTools ed={ed} getDoc={syncDoc} gotoPage={gotoPage} reload={() => { const d = docRef.current!; const p = d.pages[pageIdx]; persist(); ed.replaceCurrent(p.json); d.pages.forEach((x) => refreshThumb(x.id)) }} />}
-        <AnimateButton getDoc={syncDoc} pageIdx={pageIdx} onChange={persist} />
-        {isLocal() && <AskAIButton docId={doc.id} page={pageIdx + 1} />}
-        <button className="tb-btn" title="バージョン履歴" onClick={() => { syncDoc(); flush(); setModal('versions') }}><History size={18} /></button>
-        <button className="tb-btn" title="プレゼンテーション(全画面)" onClick={() => { syncDoc(); setPresenting(true) }}><Play size={18} /><span className="hide-sm">プレゼン</span></button>
-        <ShareButton docId={doc.id} initialShareId={(doc as any).shareId ?? null} beforeShare={async () => { syncDoc(); dirty.current = true; await flush() }}
-          collab={isLocal() ? undefined : { room: collabRoom, busy: collabBusy, onStart: () => { void startCollab() }, onStop: stopCollab }} />
+        {extras}
         <DownloadButton getDoc={syncDoc} peekDoc={() => docRef.current!} currentPage={pageIdx} />
       </header>
+      )}
       {modal === 'resize' && <ResizeModal getDoc={syncDoc} onClose={() => setModal('')} onResized={reloadFromRepo} />}
       {modal === 'versions' && <VersionsModal getDoc={syncDoc} onClose={() => setModal('')} onRestore={reloadFromRepo} />}
       {presenting && <Present doc={docRef.current!} startPage={pageIdx} onClose={() => setPresenting(false)} />}
@@ -619,12 +671,15 @@ export function Editor({ docId }: { docId: string }) {
       {help && <div className="modal-back" onPointerDown={() => setHelp(false)}><div className="modal" onPointerDown={(e) => e.stopPropagation()}><h3>キーボードショートカット</h3><table className="keys"><tbody>{SHORTCUTS.map(([k, v]) => <tr key={k}><td><kbd>{k}</kbd></td><td>{v}</td></tr>)}</tbody></table><div className="row" style={{ justifyContent: 'flex-end', marginTop: 12 }}><button className="chip" onClick={() => setHelp(false)}>閉じる</button></div></div></div>}
       {conflict && <div className="conflict">このデザインは別のタブ(または別の操作)で更新されました。上書きを防ぐため保存を止めています。<button className="chip" onClick={() => location.reload()}>最新を読み込む(この画面の変更は破棄)</button><button className="chip" onClick={saveAsCopy}>この画面の内容を別のデザインとして保存</button></div>}
       <div className="workspace">
-        <nav className="rail">
+        {!isMobile && <nav className="rail">
           {TABS.map(([id, label, icon]) => (
             <button key={id} className={'rail-btn' + (tab === id ? ' on' : '')} onClick={() => setTab(tab === id ? null : id)}>{icon}<span>{label}</span></button>
           ))}
-        </nav>
-        {tab && ed && <LeftPanel tab={tab} ed={ed} onApplyTemplate={applyTemplate} version={version.current} audio={doc.audio} onAudio={setAudio} />}
+        </nav>}
+        {tab && ed && !isMobile && <LeftPanel tab={tab} ed={ed} onApplyTemplate={applyTemplate} version={version.current} audio={doc.audio} onAudio={setAudio} />}
+        {tab && ed && isMobile && <BottomSheet key={tab} title={TABS.find((t) => t[0] === tab)?.[1] ?? ''} onClose={() => setTab(null)}>
+          <LeftPanel tab={tab} ed={ed} onApplyTemplate={applyTemplate} version={version.current} audio={doc.audio} onAudio={setAudio} />
+        </BottomSheet>}
         <main className="stage-col">
           {ed && <Toolbar ed={ed} docColors={docColors} />}
           <div ref={areaRef} className={'stage' + (dragOver ? ' drag' : '')}
@@ -640,7 +695,7 @@ export function Editor({ docId }: { docId: string }) {
             <div className="pages">
               {doc.pages.map((p, i) => (
                 <button key={p.id} className={'page-thumb' + (i === pageIdx ? ' on' : '')} onClick={() => gotoPage(i)} title={`ページ ${i + 1}(ドラッグで並べ替え)`}
-                  draggable onDragStart={() => { dragPage.current = i }} onDragOver={(e) => { if (dragPage.current !== null) e.preventDefault() }} onDrop={(e) => { e.preventDefault(); e.stopPropagation(); dropPage(i) }}>
+                  draggable={!isMobile} onDragStart={() => { dragPage.current = i }} onDragOver={(e) => { if (dragPage.current !== null) e.preventDefault() }} onDrop={(e) => { e.preventDefault(); e.stopPropagation(); dropPage(i) }}>
                   {thumbs[p.id] ? <img src={thumbs[p.id]} alt="" style={{ aspectRatio: `${doc.width}/${doc.height}` }} /> : <div className="thumb-ph" style={{ aspectRatio: `${doc.width}/${doc.height}` }} />}
                   <span>{i + 1}</span>
                 </button>
@@ -660,6 +715,7 @@ export function Editor({ docId }: { docId: string }) {
             </div>
           </footer>
         </main>
+        {isMobile && <MobileTabBar tab={tab} setTab={setTab} />}
       </div>
     </div>
   )

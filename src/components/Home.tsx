@@ -15,6 +15,9 @@ import { AgentConnect } from './AgentConnect'
 import { CommandPalette, openPalette } from './CommandPalette'
 import { useTheme } from './theme'
 import sampleDeck from '../data/sampleDeck.json'
+import { useIsMobile } from './mobile/useMobile'
+import { InstallPrompt } from './mobile/InstallPrompt'
+import './mobile/mobile.css'
 
 async function openNew(doc: DesignDoc) {
   doc.updatedAt = await repo.put(doc, { baseUpdatedAt: null })
@@ -36,7 +39,8 @@ export function Home() {
   const [loadErr, setLoadErr] = useState('')
   const { user } = useSession()
   const [theme, toggleTheme] = useTheme()
-  const [view, setView] = useState<View>(() => (location.hash.includes('agent') ? 'agent' : 'home'))
+  const isMobile = useIsMobile()
+  const [view, setView] = useState<View>(() => (location.hash.includes('agent') ? 'agent' : location.hash.includes('view=designs') ? 'designs' : 'home'))
   // Google ログインから戻ったときの結果(#/?auth=…)を表示して URL から消す
   const [authMsg] = useState(() => { const m = location.hash.match(/[?&]auth=([^&]+)/); if (m) history.replaceState(null, '', location.pathname + '#/'); return m ? decodeURIComponent(m[1]) : '' })
   const load = () => repo.list().then((d) => { setDocs(d); setLoadErr('') }).catch((e) => setLoadErr(e?.message ?? String(e)))
@@ -73,12 +77,12 @@ export function Home() {
       <aside className="sidenav">
         <div className="brand"><span className="brand-mark" />irodori</div>
         {nav.map(([id, label, icon, count]) => (
-          <button key={id} className={'nav-item' + (view === id ? ' on' : '')} onClick={() => setView(id)}>{icon}{label}{count !== undefined && <span className="count">{count}</span>}</button>
+          <button key={id} className={'nav-item nav-' + id + (view === id ? ' on' : '')} onClick={() => setView(id)}>{icon}{label}{count !== undefined && <span className="count">{count}</span>}</button>
         ))}
         <div className="nav-sec">作成</div>
-        <button className="nav-item" onClick={() => createFromSize(SIZES.find((s) => s.id === 'ig-post')!)}><Plus size={16} />Instagram 投稿</button>
-        <button className="nav-item" onClick={() => createFromSize(SIZES.find((s) => s.id === 'slide-169')!)}><Presentation size={16} />プレゼン資料</button>
-        <button className="nav-item" onClick={() => newDeck(true)}><Sparkles size={16} />HTML スライド</button>
+        <button className="nav-item nav-create" onClick={() => createFromSize(SIZES.find((s) => s.id === 'ig-post')!)}><Plus size={16} />Instagram 投稿</button>
+        <button className="nav-item nav-create" onClick={() => createFromSize(SIZES.find((s) => s.id === 'slide-169')!)}><Presentation size={16} />プレゼン資料</button>
+        <button className="nav-item nav-create" onClick={() => newDeck(true)}><Sparkles size={16} />HTML スライド</button>
         <div className="nav-foot">
           <div className="store-pill" title="デザインの保存先"><span className={'dot' + (storageOk ? ' ok' : ' warn')} />保存先: {storeLabel(user)}</div>
           <div className="row" style={{ justifyContent: 'space-between' }}>
@@ -91,6 +95,7 @@ export function Home() {
         <div className="topnav">
           <button className="cmd-trigger" onClick={openPalette} aria-label="検索(⌘K)"><Search size={15} /><span className="cmd-label">テンプレート・サイズ・操作を検索</span><kbd>⌘K</kbd></button>
           <div className="tb-spacer" />
+          {isMobile && <><AccountButton onChanged={load} /><button className="icon-btn" aria-label={theme === 'dark' ? 'ライトテーマ' : 'ダークテーマ'} onClick={toggleTheme}>{theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}</button></>}
           <button className="primary-btn" onClick={() => setView('home')}><Plus size={16} />デザインを作成</button>
         </div>
         {isDemo() && <p className="banner-info">公開デモです。デザインはこのブラウザの中だけに保存されます。AI エージェント(Claude Code など)と連携するには、自分の PC で動かしてください(左の「AI エージェント連携」)。</p>}
@@ -105,6 +110,7 @@ export function Home() {
           {view === 'agent' && <AgentConnect />}
         </div>
       </main>
+      {isMobile && <InstallPrompt />}
       <CommandPalette docs={docs} onNewDeck={() => newDeck(true)} goto={setView} toggleTheme={toggleTheme} />
     </div>
   )

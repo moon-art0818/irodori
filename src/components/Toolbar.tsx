@@ -41,7 +41,7 @@ function Slider({ label, value, min, max, step = 1, onChange, onCommit }: { labe
 export function Toolbar({ ed, docColors }: { ed: EditorCore; docColors: string[] }) {
   const objs = ed.selected()
   const o = ed.active()
-  if (!o) return <div className="toolbar empty">オブジェクトをクリックすると、ここで色や文字を編集できます</div>
+  if (!o) return <div className="toolbar empty"><span className="not-m">オブジェクトをクリックすると、ここで色や文字を編集できます</span><span className="only-m">タップして選ぶと、ここで色や文字を直せます(2 本指で拡大・移動)</span></div>
 
   const multi = o instanceof ActiveSelection
   const texts = objs.filter((x) => x instanceof Textbox) as Textbox[]
@@ -281,7 +281,7 @@ function ImageControls({ ed, img }: { ed: EditorCore; img: FabricImage }) {
       </label>
       <button className="tb-btn" title="トリミング" onClick={() => setCrop(true)}><Crop size={18} /><span>トリミング</span></button>
       {crop && <CropModal ed={ed} img={img} onClose={() => setCrop(false)} />}
-      {(img as any).credit && <a className="credit-chip" href={/^https:\/\/(unsplash\.com|www\.pexels\.com)\//.test(String((img as any).credit.pageUrl)) ? (img as any).credit.pageUrl : undefined} target="_blank" rel="noopener noreferrer" title="写真のクレジット">Photo by {(img as any).credit.author} / {(img as any).credit.source}</a>}
+      {(img as any).credit && <a className="credit-chip" href={/^https:\/\//.test(String((img as any).credit.pageUrl)) ? (img as any).credit.pageUrl : undefined} target="_blank" rel="noopener noreferrer" title="写真のクレジット">Photo by {(img as any).credit.author} / {(img as any).credit.source}</a>}
       {(img as any).frame && <button className="tb-btn" title="写真をフレームから外す" onClick={() => ed.clearFrame()}><ImageOff size={18} /></button>}
       <Pop title="画像の調整" icon={<SlidersHorizontal size={18} />} label="調整">
         <div className="pop-label">フィルター</div>
