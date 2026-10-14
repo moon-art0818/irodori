@@ -18,6 +18,7 @@ import { SHAPES } from '../data/shapes'
 import { TEMPLATES, TEMPLATE_CATEGORIES, templateToJSON, pageCount, pageOf, type Template } from '../data/templates'
 import { FONTS } from '../data/fonts'
 import { GRADIENTS, PALETTE } from './ColorPicker'
+import './Graphics.css'
 
 export type Tab = 'templates' | 'elements' | 'photos' | 'text' | 'draw' | 'brand' | 'uploads' | 'background' | 'layers'
 export const TABS: [Tab, string, React.ReactNode][] = [
@@ -140,6 +141,7 @@ function ElementsTab({ ed }: { ed: EditorCore }) {
     <>
       <input className="search" placeholder="素材を検索(例: 星、矢印、フレーム)" value={q} onChange={(e) => setQ(e.target.value)} />
       <IconsSection ed={ed} query={q} />
+      <GraphicsSection ed={ed} query={q} />
       {groups.map((g) => {
         const items = SHAPES.filter((s) => s.group === g && (!q || (s.label + s.group).includes(q)))
         if (!items.length) return null
@@ -199,14 +201,14 @@ function IconsSection({ ed, query }: { ed: EditorCore; query: string }) {
   const [sets, setSets] = useState<any[]>([])
   const [items, setItems] = useState<any[]>([])
   const [scope, setScope] = useState<string>('core')
-  const [limit, setLimit] = useState(120)
+  const [limit, setLimit] = useState(60)
   const [progress, setProgress] = useState('')
   const [err, setErr] = useState('')
   const mod = useRef<any>(null)
   useEffect(() => {
     import('../data/icons').then(async (m) => { mod.current = m; setSets(await m.loadIconIndex()) }).catch(() => setErr('アイコンを読み込めませんでした'))
   }, [])
-  useEffect(() => { setLimit(120) }, [query, scope])
+  useEffect(() => { setLimit(60) }, [query, scope])
   useEffect(() => {
     const m = mod.current
     if (!m || !sets.length) return
@@ -263,6 +265,53 @@ function IconsSection({ ed, query }: { ed: EditorCore; query: string }) {
         {items.map((it) => <button key={it.set + it.name} className="icon-btn-big" title={it.name} draggable onDragStart={dragAdd(() => add(it))} onClick={() => add(it)} dangerouslySetInnerHTML={{ __html: m.iconSvg(it, it.color ? undefined : '#3f3f46') }} />)}
       </div>
       {items.length >= limit && <button className="chip wide" onClick={() => setLimit(limit + 240)}>もっと見る</button>}
+    </div>
+  )
+}
+
+/** パターン・グラデーション・ブロブ・装飾(src/data/graphics。すべてコード生成の自作素材) */
+function GraphicsSection({ ed, query }: { ed: EditorCore; query: string }) {
+  const [mod, setMod] = useState<typeof import('../data/graphics') | null>(null)
+  const [group, setGroup] = useState<'pattern' | 'gradient' | 'blob' | 'decor'>('pattern')
+  const [sub, setSub] = useState('')
+  const [limit, setLimit] = useState(48)
+  useEffect(() => { import('../data/graphics').then(setMod) }, [])
+  useEffect(() => { setLimit(48) }, [group, sub, query])
+  const all = useMemo(() => (mod ? mod.allGraphics() : []), [mod])
+  const q = query.normalize('NFKC').trim().toLowerCase()
+  const items = useMemo(() => all.filter((g) => (q ? g.label.toLowerCase().includes(q) : g.group === group && (!sub || g.sub === sub))), [all, q, group, sub])
+  if (!mod) return null
+  const subs = group === 'pattern' ? mod.PATTERN_TYPES.map((t) => [t.id, t.label] as [string, string]) : group === 'decor' ? mod.DECOR_SUBS : []
+  const add = async (it: any) => {
+    const { svgToObject } = await import('../editor/svg')
+    if (it.bg) {
+      // ページ全面の背景素材: ページ大で作って中央に置き、最背面へ
+      const o = await svgToObject(it.svg(ed.width, ed.height), Math.max(ed.width, ed.height))
+      ;(o as any).name = it.label
+      ed.place(o)
+      await ed.enqueue(async () => {})
+      ed.order('back')
+    } else {
+      const o = await svgToObject(it.svg(100, 100), Math.min(ed.width, ed.height) * 0.3)
+      ;(o as any).name = it.label
+      ed.place(o)
+    }
+  }
+  return (
+    <div>
+      <div className="sec-title">{q ? `パターン・装飾の検索結果(${items.length})` : `パターン・背景・装飾(全 ${all.length} 点)`}</div>
+      {!q && (
+        <>
+          <div className="gfx-chips">{mod.GRAPHIC_GROUPS.map(([id, label]) => <button key={id} className={'chip' + (group === id ? ' on' : '')} onClick={() => { setGroup(id); setSub('') }}>{label}</button>)}</div>
+          {subs.length > 0 && <div className="gfx-chips"><button className={'chip' + (!sub ? ' on' : '')} onClick={() => setSub('')}>すべて</button>{subs.map(([id, label]) => <button key={id} className={'chip' + (sub === id ? ' on' : '')} onClick={() => setSub(id)}>{label}</button>)}</div>}
+        </>
+      )}
+      {items.length === 0 && q && <p className="hint">見つかりませんでした(例: ドット、波、リボン、吹き出し)</p>}
+      <div className="gfx-grid">
+        {items.slice(0, limit).map((it) => <button key={it.id} className={'gfx-btn' + (it.bg ? '' : ' pad')} title={it.label} draggable onDragStart={dragAdd(() => add(it))} onClick={() => add(it)} dangerouslySetInnerHTML={{ __html: it.svg(100, 100) }} />)}
+      </div>
+      {items.length > limit && <button className="chip wide" style={{ marginTop: 6 }} onClick={() => setLimit(limit + 48)}>もっと見る({items.length - limit})</button>}
+      {group === 'pattern' && !q && <p className="hint">パターン・グラデーションはページ全面に敷かれ、最背面に置かれます。</p>}
     </div>
   )
 }
