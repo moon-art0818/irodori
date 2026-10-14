@@ -36,8 +36,13 @@ async function pixabayFetch(env: Env, kind: 'photos' | 'videos', q: string, page
   if (!env.PIXABAY_API_KEY) throw new HttpError(501, 'Pixabay はまだ設定されていません')
   const base = kind === 'videos' ? 'https://pixabay.com/api/videos/' : 'https://pixabay.com/api/'
   const r = await fetch(`${base}?key=${encodeURIComponent(env.PIXABAY_API_KEY)}&q=${encodeURIComponent(q)}&page=${page}&per_page=${perPage}&lang=ja&safesearch=true`)
-  if (r.status === 429) throw new HttpError(429, 'Pixabay の利用回数の上限に達しました。しばらくしてからお試しください')
-  if (!r.ok) throw new HttpError(502, `Pixabay の検索に失敗しました(${r.status})`)
+  if (!r.ok) {
+    // 原因の切り分け用(キーはログに出さない)
+    const body = (await r.text().catch(() => '')).slice(0, 200)
+    console.warn('pixabay', kind, r.status, r.headers.get('X-RateLimit-Remaining'), r.headers.get('Retry-After'), r.headers.get('server'), body)
+    if (r.status === 429) throw new HttpError(429, 'Pixabay の利用回数の上限に達しました。しばらくしてからお試しください')
+    throw new HttpError(502, `Pixabay の検索に失敗しました(${r.status})`)
+  }
   return r.json<any>()
 }
 
