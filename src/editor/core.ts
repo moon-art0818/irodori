@@ -1,7 +1,8 @@
 import {
   ActiveSelection, Canvas, FabricImage, PencilBrush, FabricObject, Gradient, Group, Path, Point, Shadow, StaticCanvas, Textbox, cache, filters, util,
 } from 'fabric'
-import { downscale, putAsset, resolveAssets, resolveAssetsAsDataURL } from './assets'
+import { collabMediaProblem, downscale, putAsset, putMediaAsset, resolveAssets, resolveAssetsAsDataURL } from './assets'
+import { Video, createVideo } from './video'
 import { fillFrame } from './elements'
 import { VText } from './vtext'
 
@@ -178,6 +179,7 @@ export class EditorCore {
       await ensureFonts(json)
       const resolved = await resolveAssets(json)
       this.canvas.discardActiveObject()
+      this.pauseVideos()
       await this.canvas.loadFromJSON(resolved)
       this.canvas.getObjects().forEach((o: any) => { if (o.locked) applyLock(o, true); if (o.table) o.set({ interactive: false }) })
       if (!this.canvas.backgroundColor) this.canvas.backgroundColor = '#ffffff'
@@ -430,6 +432,24 @@ export class EditorCore {
     const small = await downscale(file)
     const { id, url } = await putAsset(small)
     await this.addImageURL(url, id)
+  }
+
+  /** 動画ファイルを置く。素材庫に Blob で保存してから配置する。共同編集で共有できない場合は理由を返す */
+  async addVideoFile(file: Blob, credit?: Video['credit']): Promise<{ video: Video; collabNote: string | null }> {
+    if (!file.type.startsWith('video/')) throw new Error('動画ファイルではありません')
+    const { id, url } = await putMediaAsset(file)
+    const v = await createVideo(url, id)
+    if (credit) v.credit = credit
+    const k = Math.min(1, (this.width * 0.6) / v.width, (this.height * 0.6) / v.height)
+    v.set({ scaleX: k, scaleY: k, name: '動画' })
+    this.place(v)
+    await this.enqueue(async () => {})
+    return { video: v, collabNote: collabMediaProblem(file) }
+  }
+
+  /** 今のページの動画を止める */
+  pauseVideos() {
+    for (const o of this.canvas.getObjects()) if (o instanceof Video) o.pause()
   }
 
   async addImageURL(url: string, assetId?: string): Promise<FabricObject | undefined> {
@@ -950,7 +970,7 @@ export class EditorCore {
     ctx.restore()
   }
 
-  dispose() { this.canvas.dispose() }
+  dispose() { this.pauseVideos(); this.canvas.dispose() }
 }
 
 // ---------------- 書き出し(画面のズームと無関係に、ページ JSON から別キャンバスで描く) ----------------
@@ -969,6 +989,7 @@ export async function renderPage(json: any, w: number, h: number, opts: { multip
     sc.renderAll()
     return sc.toDataURL({ format: opts.format ?? 'png', quality: opts.quality ?? 0.92, multiplier: m })
   } finally {
+    sc.getObjects().forEach((o) => { if (o instanceof Video) o.dispose() }) // 動画の読み込みを解放する
     sc.dispose()
   }
 }

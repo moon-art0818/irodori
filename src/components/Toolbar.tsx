@@ -3,7 +3,9 @@ import {
   AlignCenter, AlignJustify, AlignLeft, AlignRight, Bold, Copy, FlipHorizontal, FlipVertical, Group as GroupIcon, Italic, Lock,
   Strikethrough, Trash2, Underline, Ungroup, Unlock, Layers, SlidersHorizontal, Sparkles, Minus, Plus, CaseSensitive,
 } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { Play, Pause, Volume2, VolumeX, Repeat, Scissors } from 'lucide-react'
+import { Video } from '../editor/video'
 import { Crop, ImageOff, Columns3, Wand2, List, ListOrdered, Replace } from 'lucide-react'
 import { CropModal } from './CropModal'
 import { makeChart, makeQR, makeTable, readTable, makeCurvedText, CHART_COLORS, type ChartSpec, type CurveSpec } from '../editor/elements'
@@ -44,12 +46,13 @@ export function Toolbar({ ed, docColors }: { ed: EditorCore; docColors: string[]
   const multi = o instanceof ActiveSelection
   const texts = objs.filter((x) => x instanceof Textbox) as Textbox[]
   const t = texts[0]
-  const img = objs.length === 1 && o instanceof FabricImage ? o : null
+  const vid = objs.length === 1 && o instanceof Video ? o : null
+  const img = objs.length === 1 && o instanceof FabricImage && !vid ? o : null
   const isGroup = o instanceof Group && !multi
   const locked = objs.every((x: any) => x.locked)
   const vt = objs.length === 1 && o instanceof VText ? o : null
   const special = (o as any).chart ? 'chart' : (o as any).table ? 'table' : (o as any).qr ? 'qr' : (o as any).curved ? 'curved' : ''
-  const shapeLike = !t && !img && !isGroup && !multi && !vt
+  const shapeLike = !t && !img && !vid && !isGroup && !multi && !vt
   const strokeOnly = shapeLike && !o.fill && !!o.stroke
 
   return (
@@ -73,6 +76,7 @@ export function Toolbar({ ed, docColors }: { ed: EditorCore; docColors: string[]
         </Pop>
       )}
       {img && <ImageControls key={(img as any).id} ed={ed} img={img} />}
+      {vid && <VideoControls key={(vid as any).id} ed={ed} v={vid} />}
       {multi && (
         <>
           <button className="tb-btn" title="グループ化 (⌘G)" onClick={() => ed.group()}><GroupIcon size={18} /><span>グループ化</span></button>
@@ -293,6 +297,45 @@ function ImageControls({ ed, img }: { ed: EditorCore; img: FabricImage }) {
           return { clipPath: v > 0 ? r : undefined }
         }} min={0} max={Math.round(Math.min(img.getScaledWidth(), img.getScaledHeight()) / 2)} />
       </Pop>
+    </>
+  )
+}
+
+const SAFE_CREDIT_URL = /^https:\/\/(commons\.wikimedia\.org|www\.pexels\.com|freesound\.org|www\.jamendo\.com)\//
+
+/** 動画: 再生・停止、ミュート、音量、トリミング(開始・終了)、繰り返し */
+function VideoControls({ ed, v }: { ed: EditorCore; v: Video }) {
+  const [playing, setPlaying] = useState(v.isPlaying)
+  const [, force] = useState(0)
+  // 終わりまで来て止まったときに表示を戻す
+  useEffect(() => { const t = setInterval(() => setPlaying(v.isPlaying), 250); return () => { clearInterval(t); v.pause() } }, [v])
+  const dur = v.sourceDuration
+  const start = v.start(), end = v.end()
+  const upd = (patch: Partial<Pick<Video, 'trimStart' | 'trimEnd' | 'volume' | 'muted' | 'loop'>>) => { v.set(patch as any); force((n) => n + 1) }
+  const stop = async () => { await v.showStart(); setPlaying(false) }
+  const toggle = async () => {
+    if (v.isPlaying) { await stop(); return }
+    setPlaying(true)
+    await v.play()
+    setPlaying(v.isPlaying)
+  }
+  const c = v.credit
+  return (
+    <>
+      <button className="tb-btn" title={playing ? '停止(最初のコマに戻る)' : '再生'} disabled={v.broken} onClick={toggle}>{playing ? <Pause size={18} /> : <Play size={18} />}<span>{playing ? '停止' : '再生'}</span></button>
+      <button className={'tb-btn' + (v.muted ? ' on' : '')} title={v.muted ? '音を出す' : 'ミュート'} onClick={() => { upd({ muted: !v.muted }); if (v.video) v.video.muted = !!v.muted; ed.commit() }}>{v.muted ? <VolumeX size={18} /> : <Volume2 size={18} />}<span className="hide-sm">{v.muted ? 'ミュート中' : '音あり'}</span></button>
+      <Pop title="音量" icon={<Volume2 size={18} />} label="音量">
+        <Slider label="音量(%)" value={Math.round((v.volume ?? 1) * 100)} min={0} max={100} onChange={(x) => { upd({ volume: x / 100 }); if (v.video) v.video.volume = x / 100 }} onCommit={() => ed.commit()} />
+      </Pop>
+      <Pop title="トリミング(使う範囲)" icon={<Scissors size={18} />} label="トリミング">
+        <div className="pop-label">元の長さ {dur ? dur.toFixed(1) : '?'} 秒 / 使う範囲 {(end - start).toFixed(1)} 秒</div>
+        <Slider label="開始(秒)" value={start} min={0} max={Math.max(0.1, dur)} step={0.1}
+          onChange={(x) => { const n = Math.min(x, Math.max(0, end - 0.2)); upd({ trimStart: n }); void v.seekTo(n) }} onCommit={() => { void v.showStart(); ed.commit() }} />
+        <Slider label="終了(秒)" value={end} min={0} max={Math.max(0.1, dur)} step={0.1}
+          onChange={(x) => { const n = Math.max(x, start + 0.2); upd({ trimEnd: n >= dur - 0.05 ? 0 : n }); void v.seekTo(Math.max(start, n - 0.05)) }} onCommit={() => { void v.showStart(); ed.commit() }} />
+      </Pop>
+      <button className={'tb-btn' + (v.loop ? ' on' : '')} title="繰り返し再生(動画の書き出し・プレゼン)" onClick={() => { upd({ loop: !v.loop }); ed.commit() }}><Repeat size={18} /><span className="hide-sm">繰り返し</span></button>
+      {c && <a className="credit-chip" href={SAFE_CREDIT_URL.test(String(c.pageUrl)) ? c.pageUrl : undefined} target="_blank" rel="noopener noreferrer" title="動画のクレジット">{c.author ? c.author + ' / ' : ''}{c.source}</a>}
     </>
   )
 }

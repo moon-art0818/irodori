@@ -61,3 +61,32 @@ export async function unsplashDownload(req: Request, env: Env): Promise<Response
   await fetch(url.toString(), { headers: { Authorization: `Client-ID ${env.UNSPLASH_ACCESS_KEY}` } })
   return json({ ok: true })
 }
+
+/** Pexels 動画の検索(中継)。同じ検索は1時間キャッシュする。動画ファイルは mp4 のうち幅 1280 以下で最大のもの */
+export async function searchVideos(req: Request, env: Env, ctx?: ExecutionContext): Promise<Response> {
+  const u = new URL(req.url)
+  const q = (u.searchParams.get('q') ?? '').trim().slice(0, 100)
+  const page = Math.max(1, Math.min(50, Number(u.searchParams.get('page')) || 1))
+  if (!q) throw new HttpError(400, '検索語を入れてください')
+  if (!env.PEXELS_API_KEY) throw new HttpError(501, 'Pexels はまだ設定されていません')
+  const key = `cache/videos/pexels/${page}/${encodeURIComponent(q.toLowerCase()).slice(0, 300)}.json`
+  const hit = await env.BUCKET.get(key)
+  if (hit && Date.now() - Number(hit.customMetadata?.at ?? 0) < 3600_000) return new Response(hit.body, { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } })
+  const r = await fetch(`https://api.pexels.com/videos/search?query=${encodeURIComponent(q)}&page=${page}&per_page=24&locale=ja-JP`, { headers: { Authorization: env.PEXELS_API_KEY } })
+  if (r.status === 429) throw new HttpError(429, 'Pexels の利用回数の上限に達しました。しばらくしてからお試しください')
+  if (!r.ok) throw new HttpError(502, `Pexels の検索に失敗しました(${r.status})`)
+  const j = await r.json<any>()
+  const results = (j.videos ?? []).map((v: any) => {
+    const files = (v.video_files ?? []).filter((f: any) => f.file_type === 'video/mp4' && f.link && f.width && f.width <= 1280).sort((a: any, b: any) => b.width - a.width)
+    const f = files[0]
+    if (!f) return null
+    return {
+      id: 'pxv_' + v.id, thumb: v.image, url: f.link, w: f.width, h: f.height, duration: v.duration ?? 0,
+      author: v.user?.name ?? '', authorUrl: v.user?.url ?? 'https://www.pexels.com', pageUrl: v.url ?? 'https://www.pexels.com',
+    }
+  }).filter(Boolean)
+  const body = JSON.stringify({ results })
+  const put = env.BUCKET.put(key, body, { httpMetadata: { contentType: 'application/json' }, customMetadata: { at: String(Date.now()) } })
+  if (ctx) ctx.waitUntil(put); else await put
+  return new Response(body, { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } })
+}

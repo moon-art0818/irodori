@@ -425,3 +425,18 @@ code { font-family: var(--font-mono); font-size: .92em; background: var(--surfac
 .collab-name { width: 360px; }
 .collab-sec { display: flex; flex-direction: column; gap: 8px; border-top: 1px solid var(--line); margin-top: 8px; padding-top: 10px; }
 @media (max-width: 900px) { .collab-status { display: none; } }
+
+/* ---- 動画・音楽 ---- */
+.vid-badge { position: absolute; right: 4px; bottom: 4px; background: rgba(0,0,0,.65); color: #fff; font-size: 10px; padding: 1px 6px; border-radius: 999px; pointer-events: none; }
+.bgm-now { display: flex; align-items: center; gap: 6px; padding: 6px 8px; margin-bottom: 8px; border-radius: var(--r-sm); background: var(--surface-2); }
+.bgm-now-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.audio-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+.audio-row { display: flex; align-items: center; gap: 6px; padding: 4px 6px; border-radius: var(--r-sm); background: var(--surface-2); }
+.audio-row.busy { opacity: .4; }
+.audio-meta { flex: 1; min-width: 0; }
+.audio-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 600; }
+.audio-sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; opacity: .7; }
+.audio-bar { display: flex; align-items: center; gap: 4px; max-width: 360px; min-width: 0; padding: 0 4px; border-radius: 999px; background: var(--surface-2); font-size: 12px; }
+.audio-bar-title { max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.audio-bar-credit { max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; opacity: .7; }
+.audio-pop { min-width: 260px; display: flex; flex-direction: column; gap: 8px; }

@@ -96,7 +96,7 @@ export async function resolveAssetsAsDataURL(json: any): Promise<any> {
   const toData = (b: Blob) => new Promise<string>((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result as string); r.onerror = () => rej(r.error); r.readAsDataURL(b) })
   const walk = async (o: any) => {
     if (!o || typeof o !== 'object') return
-    if (o.assetId) {
+    if (o.assetId && o.type !== 'Video') { // 動画はファイルごと埋め込まず、書き出し時に今のコマの画像にする
       let blob = (await idbGet<{ blob: Blob }>('assets', o.assetId))?.blob
       if (!blob) { const u = await getAssetURL(o.assetId); if (u) blob = await (await fetch(u)).blob() }
       if (blob) o.src = await toData(blob)
@@ -106,4 +106,38 @@ export async function resolveAssetsAsDataURL(json: any): Promise<any> {
   const copy = structuredClone(json)
   for (const o of copy.objects ?? []) await walk(o)
   return copy
+}
+
+// ---------------- 動画・音声 ----------------
+/** 動画・音声の上限(端末の素材庫に置く大きさ) */
+export const MAX_MEDIA_BYTES = 100 * 1024 * 1024
+/** 共同編集の部屋に上げられる上限(worker/collab.ts の MAX_ASSET_BYTES と同じ) */
+export const COLLAB_ASSET_BYTES = 15 * 1024 * 1024
+/** 共同編集の部屋が受け付ける動画・音声の形式(worker/collab.ts の MIME_RE と同じ) */
+const COLLAB_MEDIA_MIME = /^(video\/mp4|video\/webm|audio\/mpeg|audio\/ogg|audio\/wav)$/
+
+/** 動画・音声を端末の素材庫に置く。サーバー(画像専用)には上げない */
+export async function putMediaAsset(blob: Blob): Promise<{ id: string; url: string }> {
+  if (blob.size > MAX_MEDIA_BYTES) throw new Error(`ファイルが大きすぎます(最大 ${Math.round(MAX_MEDIA_BYTES / 1048576)}MB)`)
+  const id = 'm_' + crypto.randomUUID()
+  await idbPut('assets', { id, blob, type: blob.type, createdAt: Date.now() })
+  const url = URL.createObjectURL(blob)
+  urlCache.set(id, url)
+  return { id, url }
+}
+
+/** 素材庫の Blob を直接取る(音声のデコードなど) */
+export async function getAssetBlob(id: string): Promise<Blob | null> {
+  const rec = await idbGet<{ blob: Blob }>('assets', id)
+  if (rec?.blob) return rec.blob
+  const url = await getAssetURL(id)
+  if (!url) return null
+  try { return await (await fetch(url)).blob() } catch { return null }
+}
+
+/** 共同編集で共有できない動画・音声の理由(共有できるなら null) */
+export function collabMediaProblem(blob: Blob): string | null {
+  if (blob.size > COLLAB_ASSET_BYTES) return `${Math.round(blob.size / 1048576)}MB あり、共同編集では共有できません(上限 15MB)`
+  if (!COLLAB_MEDIA_MIME.test((blob.type || '').split(';')[0])) return `この形式(${blob.type || '不明'})は共同編集では共有できません(mp4・webm・mp3・ogg・wav のみ)`
+  return null
 }

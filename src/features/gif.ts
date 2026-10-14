@@ -2,6 +2,7 @@
 import { GIFEncoder, applyPalette, quantize } from 'gifenc'
 import { loadScene, renderAnimationFrame } from '../editor/animate'
 import type { DesignDoc } from '../editor/types'
+import type { Video } from '../editor/video'
 
 export const GIF_MAX_SIDE = 800
 
@@ -42,6 +43,19 @@ export async function exportGIF(
       scene.duration = Math.max(0.01, D || scene.duration)
       const step = 1000 / fps
       let used = 0
+      if (scene.videos.length) {
+        // 動画のあるページ: ページの全期間をコマごとに描く(コマごとに動画の時刻を合わせ、seeked を待ってから描く)
+        const frames = Math.max(1, Math.round(total / step))
+        for (let k = 0; k < frames; k++) {
+          const t = (k * step) / 1000
+          await Promise.all(scene.videos.map((v) => seekVideoAt(v, t)))
+          renderAnimationFrame(scene, animated ? Math.min(t, D) : 0)
+          frame(scene.el, step)
+          opts.onProgress?.((i + (k + 1) / frames) / n)
+          if (k % 4 === 3) await new Promise((r) => setTimeout(r))
+        }
+        continue // finally で scene.dispose() される
+      }
       for (let t = 0; t < D * 1000 - 1; t += step) {
         renderAnimationFrame(scene, t / 1000)
         frame(scene.el, step)
@@ -56,4 +70,12 @@ export async function exportGIF(
   }
   gif.finish()
   return new Blob([gif.bytes() as BlobPart], { type: 'image/gif' })
+}
+
+/** ページの開始から t 秒後の動画のコマに合わせる(ループ設定を守り、終端では最後のコマで止める) */
+async function seekVideoAt(v: Video, t: number) {
+  const len = v.clipLength
+  if (!len) { await v.seekTo(v.start()); return }
+  const local = v.loop ? t % len : Math.min(t, Math.max(0, len - 0.04))
+  await v.seekTo(v.start() + local)
 }

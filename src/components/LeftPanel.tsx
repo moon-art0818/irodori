@@ -1,5 +1,5 @@
 import { FabricImage, Textbox } from 'fabric'
-import { LayoutTemplate, Shapes, Type, Upload, PaintBucket, Layers, Eye, EyeOff, Lock, ImagePlus, Image as ImageIcon, Table, BarChart3, QrCode, PieChart, LineChart, Palette, X, Plus, PenLine, Highlighter, MousePointer2, FileUp } from 'lucide-react'
+import { LayoutTemplate, Shapes, Type, Upload, PaintBucket, Layers, Eye, EyeOff, Lock, ImagePlus, Image as ImageIcon, Table, BarChart3, QrCode, PieChart, LineChart, Palette, X, Plus, PenLine, Highlighter, MousePointer2, FileUp, Film, Music as MusicIcon } from 'lucide-react'
 import { COLLAGE_LAYOUTS, buildCollage } from '../features/collage'
 import { addUserFont, userFontNames, loadUserFonts, onUserFontsChange } from '../features/userFonts'
 import { listBrands, getActiveBrandId, setActiveBrand, createBrand, onBrandsChange } from '../features/brands'
@@ -8,6 +8,9 @@ import { getBrand, saveBrand, onBrandChange, type BrandKit } from '../editor/bra
 import { putAsset, downscale } from '../editor/assets'
 import { FRAME_SHAPES, makeFrame, makeTable, makeChart, makeQR, CHART_COLORS, frameShape } from '../editor/elements'
 import { PhotosTab } from './Photos'
+import { VideosTab } from './Videos'
+import { MusicTab } from './Music'
+import type { DesignAudio } from '../editor/types'
 import { dragAdd } from '../editor/dnd'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { EditorCore } from '../editor/core'
@@ -20,11 +23,13 @@ import { FONTS } from '../data/fonts'
 import { GRADIENTS, PALETTE } from './ColorPicker'
 import './Graphics.css'
 
-export type Tab = 'templates' | 'elements' | 'photos' | 'text' | 'draw' | 'brand' | 'uploads' | 'background' | 'layers'
+export type Tab = 'templates' | 'elements' | 'photos' | 'videos' | 'music' | 'text' | 'draw' | 'brand' | 'uploads' | 'background' | 'layers'
 export const TABS: [Tab, string, React.ReactNode][] = [
   ['templates', 'テンプレート', <LayoutTemplate size={22} />],
   ['elements', '素材', <Shapes size={22} />],
   ['photos', '写真', <ImageIcon size={22} />],
+  ['videos', '動画', <Film size={22} />],
+  ['music', '音楽', <MusicIcon size={22} />],
   ['text', 'テキスト', <Type size={22} />],
   ['draw', '描く', <PenLine size={22} />],
   ['brand', 'ブランド', <Palette size={22} />],
@@ -49,12 +54,14 @@ export function TemplateThumb({ t, width = 160, page = 0 }: { t: Template; width
 }
 
 export type ApplyMode = 'replace' | 'new' | 'all'
-export function LeftPanel({ tab, ed, onApplyTemplate, version }: { tab: Tab; ed: EditorCore; onApplyTemplate: (t: Template, mode?: ApplyMode, page?: number) => void; version: number }) {
+export function LeftPanel({ tab, ed, onApplyTemplate, version, audio, onAudio }: { tab: Tab; ed: EditorCore; onApplyTemplate: (t: Template, mode?: ApplyMode, page?: number) => void; version: number; audio?: DesignAudio; onAudio?: (a: DesignAudio | undefined) => void }) {
   return (
     <div className="side-panel">
       {tab === 'templates' && <TemplatesTab ed={ed} onApply={onApplyTemplate} />}
       {tab === 'elements' && <ElementsTab ed={ed} />}
       {tab === 'photos' && <PhotosTab ed={ed} />}
+      {tab === 'videos' && <VideosTab ed={ed} />}
+      {tab === 'music' && <MusicTab audio={audio} onAudio={(a) => onAudio?.(a)} />}
       {tab === 'text' && <TextTab ed={ed} />}
       {tab === 'brand' && <BrandTab ed={ed} />}
       {tab === 'draw' && <DrawTab ed={ed} />}

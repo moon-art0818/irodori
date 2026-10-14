@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { loadScene, renderAnimationFrame, resizeScene, type AnimScene } from '../editor/animate'
 import type { DesignDoc } from '../editor/types'
+import { BgmPlayer } from '../features/media'
 import './animate.css'
 
 export function Present({ doc, startPage, onClose }: { doc: DesignDoc; startPage: number; onClose: () => void }) {
@@ -74,6 +75,8 @@ export function Present({ doc, startPage, onClose }: { doc: DesignDoc; startPage
       }
       if (tRef.current.done) renderAnimationFrame(sc, sc.duration)
       else tick()
+      // 動画は各ページの頭から再生する(音あり。ミュート設定は動画ごと)
+      sc.videos.forEach((v) => { void v.play() })
     })()
     return () => { dead = true; cancelAnimationFrame(rafRef.current) }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -90,6 +93,15 @@ export function Present({ doc, startPage, onClose }: { doc: DesignDoc; startPage
     }
     window.addEventListener('resize', onResize)
     return () => window.removeEventListener('resize', onResize)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // BGM: 表示を始めたら流し、閉じるときはフェードアウトして止める
+  useEffect(() => {
+    let p: BgmPlayer | null = null
+    let dead = false
+    if (doc.audio) BgmPlayer.create(doc.audio).then((b) => { if (dead) { b?.dispose(); return } p = b; void b?.play() })
+    return () => { dead = true; const b = p; if (b) void b.stop(true).then(() => b.dispose()) }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 

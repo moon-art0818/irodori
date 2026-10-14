@@ -30,6 +30,7 @@ const routes: Route[] = [
   route('POST', '/api/auth/google/unlink', (r, e) => google.googleUnlink(r, e)),
   route('GET', '/api/providers', (r, e) => Promise.resolve(photos.providers(r, e))),
   route('GET', '/api/photos/search', (r, e) => photos.searchPhotos(r, e)),
+  route('GET', '/api/videos/search', (r, e) => photos.searchVideos(r, e)),
   route('POST', '/api/photos/unsplash-download', (r, e) => photos.unsplashDownload(r, e)),
   route('GET', '/api/docs', (r, e) => docs.listDocs(r, e)),
   route('GET', '/api/docs/:id', (r, e, p) => docs.getDoc(r, e, p[0])),

@@ -1,6 +1,7 @@
 import { Point, StaticCanvas, type FabricObject } from 'fabric'
 import { resolveAssets } from './assets'
 import { ensureFonts } from './core'
+import { Video } from './video'
 import { DEFAULT_DURATION, elementProgress, elementState } from './animateMath'
 import type { DesignDoc, PageAnimation } from './types'
 
@@ -19,6 +20,8 @@ export interface AnimScene {
   w: number
   h: number
   items: { obj: FabricObject; base: Base }[]
+  /** このページの動画(なければ空) */
+  videos: Video[]
   dispose(): void
 }
 
@@ -40,7 +43,8 @@ export async function loadScene(json: any, w: number, h: number, scale = 1): Pro
     },
   }))
   const anim: PageAnimation = json.animation ?? { preset: 'none' }
-  return { el, canvas, anim, duration: anim.duration ?? DEFAULT_DURATION, w, h, items, dispose: () => canvas.dispose() }
+  const videos = items.map((i) => i.obj).filter((o): o is Video => o instanceof Video)
+  return { el, canvas, anim, duration: anim.duration ?? DEFAULT_DURATION, w, h, items, videos, dispose: () => { videos.forEach((v) => v.dispose()); canvas.dispose() } }
 }
 
 /** 画面ピクセル/デザインピクセルの倍率を変える(リサイズ用)。次の renderAnimationFrame で反映される */
@@ -79,18 +83,33 @@ const CANDIDATES: [string, 'mp4' | 'webm'][] = [
   ['video/mp4;codecs=avc1.42E01E', 'mp4'], ['video/mp4;codecs=avc1', 'mp4'], ['video/mp4', 'mp4'],
   ['video/webm;codecs=vp9', 'webm'], ['video/webm;codecs=vp8', 'webm'], ['video/webm', 'webm'],
 ]
-export function pickVideoMime(): { mime: string; ext: 'mp4' | 'webm' } | null {
+// 音声を入れるときは音声のコーデックも指定して選ぶ(指定なしだと音声トラックを持てない形式になることがあるため)
+const CANDIDATES_AUDIO: [string, 'mp4' | 'webm'][] = [
+  ['video/mp4;codecs=avc1.42E01E,mp4a.40.2', 'mp4'], ['video/mp4;codecs=avc1,mp4a.40.2', 'mp4'], ['video/mp4;codecs=avc1.42E01E,opus', 'mp4'],
+  ['video/webm;codecs=vp9,opus', 'webm'], ['video/webm;codecs=vp8,opus', 'webm'], ['video/webm', 'webm'],
+]
+export function pickVideoMime(withAudio = false): { mime: string; ext: 'mp4' | 'webm' } | null {
   if (typeof MediaRecorder === 'undefined') return null
-  for (const [mime, ext] of CANDIDATES) if (MediaRecorder.isTypeSupported(mime)) return { mime, ext }
+  for (const [mime, ext] of withAudio ? CANDIDATES_AUDIO : CANDIDATES) if (MediaRecorder.isTypeSupported(mime)) return { mime, ext }
   return null
 }
 
-/** 全ページを順にアニメーション再生しながら録画する。実時間かかる(タブは前面のままにする) */
+/** ページ JSON に動画が含まれるか(グループの中も見る) */
+export function jsonHasVideo(json: any): boolean {
+  const walk = (o: any): boolean => !!o && (o.type === 'Video' || (Array.isArray(o.objects) && o.objects.some(walk)))
+  return walk({ objects: json?.objects })
+}
+export function docHasVideo(doc: DesignDoc) { return doc.pages.some((p) => jsonHasVideo(p.json)) }
+
+/** 全ページを順にアニメーション再生しながら録画する。実時間かかる(タブは前面のままにする)。
+ *  動画は各ページの頭から trimStart で再生し、音声(BGM と、ミュートしていない動画の音)を映像に足す。
+ *  fitVideo: ページの長さを「pageSeconds」と「そのページの動画の長さ(ループなし)」の長い方にする */
 export async function exportVideo(
   doc: DesignDoc,
-  opts: { pageSeconds: number; fps?: number; scale?: number; onProgress?: (r: number) => void },
-): Promise<{ blob: Blob; ext: 'mp4' | 'webm' }> {
-  const picked = pickVideoMime()
+  opts: { pageSeconds: number; fps?: number; scale?: number; fitVideo?: boolean; onProgress?: (r: number) => void },
+): Promise<{ blob: Blob; ext: 'mp4' | 'webm'; hasAudio: boolean }> {
+  const needAudio = !!doc.audio || docHasVideo(doc)
+  const picked = pickVideoMime(needAudio) ?? pickVideoMime(false)
   if (!picked) throw new Error('このブラウザは動画の録画に対応していません')
   const fps = opts.fps ?? 30
   const s = Math.min(opts.scale ?? 1, MAX_SIDE / Math.max(doc.width, doc.height))
@@ -101,33 +120,88 @@ export async function exportVideo(
   ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, W, H)
 
   const stream = rec.captureStream(fps)
+  // 音声: BGM と動画の音を 1 つの出力(MediaStreamAudioDestinationNode)に混ぜて、映像のストリームにトラックとして足す
+  let actx: AudioContext | null = null
+  let dest: MediaStreamAudioDestinationNode | null = null
+  let bgm: { src: AudioBufferSourceNode; gain: GainNode; vol: number; fadeOut: number } | null = null
+  if (needAudio && typeof AudioContext !== 'undefined') {
+    actx = new AudioContext()
+    await actx.resume().catch(() => {})
+    dest = actx.createMediaStreamDestination()
+    dest.stream.getAudioTracks().forEach((t) => stream.addTrack(t))
+    if (doc.audio) {
+      const { getAssetBlob } = await import('./assets')
+      const blob = await getAssetBlob(doc.audio.assetId)
+      if (blob) {
+        try {
+          const buf = await actx.decodeAudioData(await blob.arrayBuffer())
+          const src = actx.createBufferSource()
+          src.buffer = buf
+          const start = doc.audio.start >= 0 && doc.audio.start < buf.duration - 0.1 ? doc.audio.start : 0
+          src.loop = true; src.loopStart = start; src.loopEnd = buf.duration // 動画より短い曲は繰り返す
+          const gain = actx.createGain()
+          src.connect(gain).connect(dest)
+          bgm = { src, gain, vol: Math.max(0, Math.min(1, doc.audio.volume ?? 1)), fadeOut: Math.max(0, doc.audio.fadeOut ?? 0) }
+          const fi = Math.max(0, doc.audio.fadeIn ?? 0), t0 = actx.currentTime
+          gain.gain.setValueAtTime(fi > 0 ? 0 : bgm.vol, t0)
+          if (fi > 0) gain.gain.linearRampToValueAtTime(bgm.vol, t0 + fi)
+          src.start(t0, start)
+        } catch { /* デコードできない音源は入れない */ }
+      }
+    }
+  }
+  const hasAudioTrack = stream.getAudioTracks().length > 0
   const recorder = new MediaRecorder(stream, { mimeType: picked.mime, videoBitsPerSecond: Math.round(W * H * fps * 0.15) })
   const chunks: Blob[] = []
   recorder.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data) }
   const stopped = new Promise<void>((res) => { recorder.onstop = () => res() })
 
   const n = doc.pages.length
-  const total = n * opts.pageSeconds
   const mk = (i: number) => { const p = loadScene(doc.pages[i].json, doc.width, doc.height, s); p.catch(() => {}); return p }
   let next = mk(0)
+  let doneTime = 0
   recorder.start(500)
   try {
     for (let i = 0; i < n; i++) {
       const scene = await next
       if (i + 1 < n) next = mk(i + 1) // 次ページはこのページの再生中に読み込む
-      scene.duration = Math.min(scene.duration, opts.pageSeconds * 0.7)
+      const pageSec = opts.fitVideo
+        ? Math.max(opts.pageSeconds, ...scene.videos.filter((v) => !v.loop).map((v) => v.clipLength))
+        : opts.pageSeconds
+      scene.duration = Math.min(scene.duration, pageSec * 0.7)
       try {
+        // 動画: 音を混ぜ出力につなぎ、trimStart から再生する
+        for (const v of scene.videos) {
+          const el = v.video
+          if (!el || v.broken) continue
+          if (actx && dest && !v.muted) {
+            try {
+              const g = actx.createGain()
+              g.gain.value = Math.max(0, Math.min(1, v.volume ?? 1))
+              actx.createMediaElementSource(el).connect(g).connect(dest)
+            } catch { /* つなげない動画は無音で録る */ }
+          }
+          await v.play({ sound: !v.muted, exporting: true })
+        }
         renderAnimationFrame(scene, 0)
         ctx.drawImage(scene.el, 0, 0, W, H)
         const t0 = performance.now()
+        if (bgm && actx && i === n - 1 && bgm.fadeOut > 0) { // 最後のページの長さが決まったので、BGM のフェードアウトを予約する
+          const endT = actx.currentTime + pageSec
+          bgm.gain.gain.setValueAtTime(bgm.vol, Math.max(actx.currentTime, endT - bgm.fadeOut))
+          bgm.gain.gain.linearRampToValueAtTime(0, endT)
+        }
+        const rest = (n - i - 1) * opts.pageSeconds
         for (;;) {
           const el = (performance.now() - t0) / 1000
-          if (el >= opts.pageSeconds) break
+          if (el >= pageSec) break
+          scene.videos.forEach((v) => v.enforceRange())
           renderAnimationFrame(scene, el)
           ctx.drawImage(scene.el, 0, 0, W, H)
-          opts.onProgress?.((i * opts.pageSeconds + el) / total)
+          opts.onProgress?.((doneTime + el) / (doneTime + pageSec + rest))
           await new Promise((r) => setTimeout(r, 1000 / fps))
         }
+        doneTime += pageSec
       } finally { scene.dispose() }
     }
     opts.onProgress?.(1)
@@ -136,6 +210,8 @@ export async function exportVideo(
     if (recorder.state !== 'inactive') recorder.stop()
     await stopped
     stream.getTracks().forEach((t) => t.stop())
+    try { bgm?.src.stop() } catch { /* 既に止まっている */ }
+    actx?.close().catch(() => {})
   }
-  return { blob: new Blob(chunks, { type: picked.mime.split(';')[0] }), ext: picked.ext }
+  return { blob: new Blob(chunks, { type: picked.mime.split(';')[0] }), ext: picked.ext, hasAudio: hasAudioTrack }
 }

@@ -3,12 +3,16 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { EditorCore, renderPage } from '../editor/core'
 import { blankPage, newPageId, repo, localRepo, newId as newDocId, ConflictError, GoneError } from '../editor/repo'
 import { storageOk } from '../editor/idb'
-import type { DesignDoc } from '../editor/types'
+import type { DesignAudio, DesignDoc } from '../editor/types'
 
 const bc = new BroadcastChannel('irodori-docs')
 import { templateToJSON, templatePagesJSON, type Template } from '../data/templates'
 import { toast } from 'sonner'
 import { LeftPanel, TABS, type Tab } from './LeftPanel'
+import { AudioBar } from './AudioBar'
+import { addVideoFiles } from './Videos'
+import { audioFromFile } from './Music'
+import { setMediaCollab } from '../features/media'
 import { Toolbar } from './Toolbar'
 import { DownloadButton, exportDoc } from './Download'
 import { ContextMenu, SHORTCUTS } from './ContextMenu'
@@ -544,6 +548,14 @@ export function Editor({ docId }: { docId: string }) {
     catch (e: any) { alert('保存できませんでした: ' + (e?.message ?? e)) }
   }
 
+  /** BGM を設定・変更・外す(デザインに 1 本) */
+  const setAudio = (a: DesignAudio | undefined) => {
+    const d = docRef.current!
+    if (a) d.audio = a; else delete d.audio
+    setDoc({ ...d }); persist()
+  }
+  useEffect(() => { setMediaCollab(!!collab); return () => setMediaCollab(false) }, [collab])
+
   const rename = (name: string) => { const d = docRef.current!; d.name = name || '無題のデザイン'; setDoc({ ...d }); persist() }
 
   const onDrop = async (e: React.DragEvent) => {
@@ -556,8 +568,12 @@ export function Editor({ docId }: { docId: string }) {
       await ed.moveActiveCenterTo(pt.x, pt.y)
       return
     }
-    const files = Array.from(e.dataTransfer.files).filter((f) => f.type.startsWith('image/'))
-    for (const f of files) await edRef.current?.addImageFile(f)
+    const all = Array.from(e.dataTransfer.files)
+    for (const f of all.filter((f) => f.type.startsWith('image/'))) await edRef.current?.addImageFile(f)
+    const vids = all.filter((f) => f.type.startsWith('video/'))
+    if (vids.length && ed) { try { await addVideoFiles(ed, vids) } catch (er: any) { toast.error(er?.message ?? '動画を置けませんでした') } }
+    const aud = all.find((f) => f.type.startsWith('audio/'))
+    if (aud) { try { setAudio(await audioFromFile(aud)); toast.success('BGM に設定しました') } catch (er: any) { toast.error(er?.message ?? '音声を設定できませんでした') } }
   }
 
   if (loadErr) return <div className="center-msg">デザインを読み込めませんでした: {loadErr}<button className="chip" onClick={() => location.reload()}>再読み込み</button><a href="#/">ホームへ戻る</a></div>
@@ -579,6 +595,7 @@ export function Editor({ docId }: { docId: string }) {
         <span className={'save-state ' + saveState} title={saveState === 'error' ? 'このブラウザでは保存できません(プライベートモード等)。ダウンロードして保存してください' : ''}>
           {saveState === 'error' ? <><CloudOff size={16} />保存できません</> : saveState === 'saving' ? <><Cloud size={16} />保存中…</> : <><Cloud size={16} />保存済み</>}
         </span>
+        {doc.audio && <AudioBar audio={doc.audio} onChange={setAudio} />}
         {collab && myName && <CollabBar session={collab.session} selfName={myName} selfColor={colorFor(myName)} />}
         <div className="tb-spacer" />
         <button className="tb-btn" title="サイズを変更(マジックリサイズ)" onClick={() => { syncDoc(); flush(); setModal('resize') }}><Scaling size={18} /><span className="hide-sm">サイズ変更</span></button>
@@ -607,7 +624,7 @@ export function Editor({ docId }: { docId: string }) {
             <button key={id} className={'rail-btn' + (tab === id ? ' on' : '')} onClick={() => setTab(tab === id ? null : id)}>{icon}<span>{label}</span></button>
           ))}
         </nav>
-        {tab && ed && <LeftPanel tab={tab} ed={ed} onApplyTemplate={applyTemplate} version={version.current} />}
+        {tab && ed && <LeftPanel tab={tab} ed={ed} onApplyTemplate={applyTemplate} version={version.current} audio={doc.audio} onAudio={setAudio} />}
         <main className="stage-col">
           {ed && <Toolbar ed={ed} docColors={docColors} />}
           <div ref={areaRef} className={'stage' + (dragOver ? ' drag' : '')}
