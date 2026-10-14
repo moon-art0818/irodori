@@ -60,6 +60,15 @@ export async function loadFonts(list: [string, string][], timeoutMs = 4000) {
   await Promise.race([p, new Promise((r) => setTimeout(r, timeoutMs))])
 }
 
+/** 文字列のいちばん長い行の幅(px)。書体を読み込んだ後に呼ぶ */
+let measureCtx: CanvasRenderingContext2D | null = null
+function measureLines(text: string, fontSize: number, weight: string | number, family: string): number {
+  measureCtx ??= document.createElement('canvas').getContext('2d')
+  if (!measureCtx) return text.length * fontSize
+  measureCtx.font = `${weight} ${fontSize}px "${family}", sans-serif`
+  return Math.max(0, ...text.split('\n').map((l) => measureCtx!.measureText(l).width))
+}
+
 export class EditorCore {
   canvas: Canvas
   width: number
@@ -417,7 +426,8 @@ export class EditorCore {
     await loadFonts([[fontFamily, preset.text]])
     const t = new Textbox(preset.text, {
       fontFamily, fontSize: preset.fontSize, fontWeight: preset.fontWeight ?? 400, fill: preset.fill ?? '#1f2937',
-      width: Math.min(this.width * 0.8, Math.max(200, preset.text.length * preset.fontSize * 0.9)),
+      // 読み込んだ書体で実際の幅を測る(全角は 1 文字 ≒ 1em。固定の係数だと折り返してしまう)
+      width: Math.min(this.width * 0.8, Math.max(200, measureLines(preset.text, preset.fontSize, preset.fontWeight ?? 400, fontFamily) + preset.fontSize * 0.3)),
       textAlign: 'center', lineHeight: 1.3, splitByGrapheme: true,
     })
     // 大きなキャンバスでは文字も大きく
