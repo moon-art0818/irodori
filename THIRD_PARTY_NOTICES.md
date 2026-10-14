@@ -93,14 +93,21 @@ Apache-2.0 のセット(noto、fxemoji、mdi、ri、noto-v1、icon-park、icon-p
 
 ## 4. フォント
 
-すべて Google Fonts(SIL Open Font License など)を、実行時に `fonts.googleapis.com` / `fonts.gstatic.com` から読み込みます。**フォントファイルは同梱していません**。対象は `src/data/fonts.ts` の一覧です。
+すべて Google Fonts(SIL Open Font License など)を、実行時に `fonts.googleapis.com` / `fonts.gstatic.com` から読み込みます。**フォントファイルは同梱していません**。既定の 63 書体は `src/data/fonts.ts`、それ以外は Google Fonts の全カタログ(1,950 書体)で、メタデータ(名前・分類・対応文字・太さ)だけを `scripts/build-fonts.mjs` が `src/data/fontCatalog.json` に出力しています(`https://fonts.google.com/metadata/fonts` から取得)。選んだ書体の CSS はその時に読み込みます。
+- UNVERIFIED: Google Fonts のメタデータにはライセンス欄がなく、書体ごとのライセンスは個別に確認していません。Google Fonts は OFL・Apache-2.0・Ubuntu Font Licence のいずれかで配布している(記憶ベース)ため、いずれも商用利用・埋め込みが可能です。
 
 ## 5. 写真
 
 写真は同梱せず、実行時に各サービスから取得します。
 - Openverse(CC0 / パブリックドメインのみに絞って検索)
+- Wikimedia Commons(CC0 / パブリックドメインのみ。`haslicense:unrestricted` で絞り、さらに表記が CC0・Public domain 系のものだけを採用。CC BY・CC BY-SA は除外)。画像は取り込んで保存し、作者名とファイルページをクレジットとして画像に残します。人物・商標・建造物などの権利が写り込む場合があります。
+- 採用しなかった出典(2026-10-14 調査): Art Institute of Chicago(画像サーバーが 403)、NASA Image and Video Library・Cleveland Museum of Art(画像に CORS ヘッダーなし)、Met(画像サーバーが応答せず)。いずれも canvas に置けない/取り込めないため。
 - Picsum(<https://picsum.photos>。コード内のコメントでは Unsplash License の写真として扱っています)
 - Unsplash / Pexels: 利用者が自分のサーバー(Cloudflare 版)に API キーを設定した場合のみ。各社の API 利用規約・ガイドラインに従い、クレジットを表示してください。
+
+## 5b. パターン・背景・装飾素材(自作)
+
+`src/data/graphics/` が実行時にコードで SVG を生成します(幾何学パターン、グラデーション、ブロブ、フレーム・吹き出し・リボン・バッジ・矢印など。約 870 点)。外部の素材は含まないため、ライセンスの対象外です。
 
 ## 6. slide-studio
 
