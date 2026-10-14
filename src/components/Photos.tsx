@@ -1,4 +1,6 @@
-// 写真: Openverse(CC0 / パブリックドメインのみ = 表記不要・商用可)と Picsum(Unsplash License)
+// 写真: Openverse(CC0 / パブリックドメインのみ)、Wikimedia Commons(CC0 / パブリックドメインのみ)、Picsum(Unsplash License)
+// 出典の調査(2026-10-14): Art Institute of Chicago・NASA Image Library・Met・Cleveland は、画像サーバーが CORS を許可しない/ボット対策で拒否するため
+// canvas に置けない(fetch も不可・中継サーバーなし)ので採用していない。
 import { useEffect, useRef, useState } from 'react'
 import type { EditorCore } from '../editor/core'
 import { putAsset, downscale } from '../editor/assets'
@@ -7,8 +9,9 @@ import { api } from '../api/client'
 import { getProviders } from '../api/session'
 import type { Providers } from '../api/contract'
 
-interface Photo { id: string; thumb: string; full: string; credit: string; w: number; h: number; src: 'openverse' | 'picsum' | 'unsplash' | 'pexels'; author?: string; authorUrl?: string; pageUrl?: string; downloadLocation?: string }
+interface Photo { id: string; thumb: string; full: string; credit: string; w: number; h: number; src: 'openverse' | 'picsum' | 'unsplash' | 'pexels' | 'wikimedia'; credit0?: { author?: string; pageUrl?: string; source: string }; author?: string; authorUrl?: string; pageUrl?: string; downloadLocation?: string }
 type Source = 'free' | 'unsplash' | 'pexels'
+type FreeSrc = 'openverse' | 'wikimedia'
 
 // 日本語の検索語を英語に寄せる(Openverse は英語の方がヒットが多い)
 let jaDict: Record<string, string[]> | null = null
@@ -32,13 +35,45 @@ async function toEnglishIfNeeded(q: string, source: Source) {
 
 async function searchOpenverse(q: string, page: number): Promise<Photo[]> {
   const term = await toEnglish(q)
-  const r = await fetch(`https://api.openverse.org/v1/images/?q=${encodeURIComponent(term)}&license=cc0,pdm&page_size=30&page=${page}`)
+  const r = await fetch(`https://api.openverse.org/v1/images/?q=${encodeURIComponent(term)}&license=cc0,pdm&page_size=20&page=${page}`)
   if (!r.ok) throw new Error(`検索に失敗しました(${r.status})`)
   const j = await r.json()
   return (j.results ?? []).map((x: any) => ({
     id: 'ov_' + x.id, thumb: x.thumbnail, full: x.url, credit: `${x.creator ?? '不明'} / ${x.source}(${x.license.toUpperCase()})`,
     w: x.width ?? 1, h: x.height ?? 1, src: 'openverse',
+    credit0: { author: x.creator ?? undefined, pageUrl: x.foreign_landing_url, source: `${x.source ?? 'Openverse'}(${String(x.license ?? '').toUpperCase()})` },
   }))
+}
+const stripHtml = (h: string) => { const d = new DOMParser().parseFromString(h ?? '', 'text/html'); return (d.body.textContent ?? '').replace(/\s+/g, ' ').trim() }
+/** Wikimedia Commons: CC0 / パブリックドメインのみ(haslicense:unrestricted で絞り、さらに表記を確認して CC BY 等を除く) */
+async function searchWikimedia(q: string, page: number): Promise<Photo[]> {
+  const term = await toEnglish(q)
+  const base = term.trim() ? term.trim() : 'incategory:"Featured pictures on Wikimedia Commons"'
+  const url = 'https://commons.wikimedia.org/w/api.php?' + new URLSearchParams({
+    origin: '*', action: 'query', format: 'json', generator: 'search', gsrnamespace: '6',
+    gsrsearch: `${base} filetype:bitmap haslicense:unrestricted`, gsrlimit: '30', gsroffset: String((page - 1) * 30),
+    prop: 'imageinfo', iiprop: 'url|extmetadata|size|mime', iiurlwidth: '500',
+  })
+  const r = await fetch(url)
+  if (!r.ok) throw new Error(`検索に失敗しました(${r.status})`)
+  const j = await r.json()
+  const pages: any[] = Object.values(j.query?.pages ?? {}).sort((a: any, b: any) => a.index - b.index)
+  const out: Photo[] = []
+  for (const p of pages) {
+    const ii = p.imageinfo?.[0]
+    if (!ii || !/^image\/(jpeg|png|webp)$/.test(ii.mime)) continue
+    const lic = String(ii.extmetadata?.LicenseShortName?.value ?? '')
+    if (!/^(cc0|cc[- ]zero|public domain|pd\b)/i.test(lic)) continue // CC BY / CC BY-SA は表記義務があるので入れない
+    // 大きい版: 元画像の幅に収まる標準サイズ(thumb.wikimedia.org は段階サイズのみ)
+    const sz = [1920, 1280, 960].find((n) => n <= ii.width)
+    const full = sz && ii.thumburl ? ii.thumburl.replace(/\/\d+px-/, `/${sz}px-`) : ii.url
+    out.push({
+      id: 'wm_' + p.pageid, thumb: ii.thumburl ?? ii.url, full, w: ii.width, h: ii.height, src: 'wikimedia',
+      credit: `${stripHtml(ii.extmetadata?.Artist?.value) || '不明'} / Wikimedia Commons(${lic})`,
+      credit0: { author: stripHtml(ii.extmetadata?.Artist?.value) || undefined, pageUrl: ii.descriptionurl, source: `Wikimedia Commons(${lic})` },
+    })
+  }
+  return out
 }
 async function listPicsum(page: number): Promise<Photo[]> {
   const r = await fetch(`https://picsum.photos/v2/list?page=${page}&limit=30`)
@@ -62,10 +97,11 @@ export function PhotosTab({ ed }: { ed: EditorCore }) {
   const [adding, setAdding] = useState('')
   const [err, setErr] = useState('')
   const [source, setSource] = useState<Source>('free')
+  const [freeSrc, setFreeSrc] = useState<FreeSrc>('openverse')
   const [prov, setProv] = useState<Providers | null>(null)
   useEffect(() => { getProviders().then(setProv) }, [])
   const term = useRef('')
-  const load = async (query: string, p: number, src: Source = source) => {
+  const load = async (query: string, p: number, src: Source = source, fs: FreeSrc = freeSrc) => {
     setBusy(true); setErr('')
     try {
       let res: Photo[]
@@ -73,7 +109,8 @@ export function PhotosTab({ ed }: { ed: EditorCore }) {
         if (!query) { setItems([]); setBusy(false); return }
         const r = await api.searchPhotos(src, await toEnglishIfNeeded(query, src), p)
         res = r.results.map((x) => ({ id: x.id, thumb: x.thumb, full: x.url, credit: `${x.author} / ${src === 'unsplash' ? 'Unsplash' : 'Pexels'}`, w: x.w, h: x.h, src: x.provider, author: x.author, authorUrl: x.authorUrl, pageUrl: x.pageUrl, downloadLocation: x.downloadLocation }))
-      } else res = query ? await searchOpenverse(query, p) : await listPicsum(p)
+      } else if (fs === 'wikimedia') res = await searchWikimedia(query, p)
+      else res = query ? await searchOpenverse(query, p) : await listPicsum(p)
       setItems((prev) => (p === 1 ? res : [...prev, ...res]))
       setPage(p)
     } catch (e: any) { setErr(e?.message ?? String(e)) }
@@ -94,11 +131,14 @@ export function PhotosTab({ ed }: { ed: EditorCore }) {
     }
     try {
       // 取り込んで自分の保存領域に置く(外部URLのままだと書き出し時に失敗・リンク切れするため)
-      let r = await fetch(ph.full)
-      if (!r.ok) r = await fetch(ph.thumb)
+      // 元画像は提供元によって CORS で拒否される(fetch が例外になる)ので、その場合は Openverse 経由のサムネイルに切り替える
+      let r: Response
+      try { r = await fetch(ph.full); if (!r.ok) throw new Error(String(r.status)) } catch { r = await fetch(ph.thumb) }
       const blob = await downscale(await r.blob())
       const { id, url } = await putAsset(blob)
-      await ed.addImageURL(url, id)
+      const o = (await ed.addImageURL(url, id)) as any
+      // 表記は不要なライセンスだが、出所を残す(ツールバーのクレジットチップに出る)
+      if (o && ph.credit0) { o.credit = { author: ph.credit0.author ?? '不明', pageUrl: ph.credit0.pageUrl, source: ph.credit0.source }; ed.commit() }
     } catch {
       setErr('この写真は取り込めませんでした(提供元の制限)。別の写真を選んでください')
     } finally { setAdding('') }
@@ -112,10 +152,16 @@ export function PhotosTab({ ed }: { ed: EditorCore }) {
           {prov.pexels && <button className={'chip' + (source === 'pexels' ? ' on' : '')} onClick={() => { setSource('pexels'); setItems([]); if (term.current) load(term.current, 1, 'pexels') }}>Pexels</button>}
         </div>
       )}
+      {source === 'free' && (
+        <div className="row src-tabs">
+          <button className={'chip' + (freeSrc === 'openverse' ? ' on' : '')} onClick={() => { setFreeSrc('openverse'); setItems([]); load(term.current, 1, 'free', 'openverse') }}>Openverse</button>
+          <button className={'chip' + (freeSrc === 'wikimedia' ? ' on' : '')} onClick={() => { setFreeSrc('wikimedia'); setItems([]); load(term.current, 1, 'free', 'wikimedia') }}>Wikimedia Commons</button>
+        </div>
+      )}
       <form onSubmit={(e) => { e.preventDefault(); term.current = q; load(q, 1) }}>
         <input className="search" placeholder="写真を検索(例: コーヒー、海、business)" value={q} onChange={(e) => setQ(e.target.value)} />
       </form>
-      <p className="hint">{term.current ? '検索結果は CC0・パブリックドメインのみ(表記不要・商用可)' : 'おすすめ写真(Unsplash License・商用可)。キーワードで検索もできます'}。フレームを選んでからクリックすると枠の中に入ります。</p>
+      <p className="hint">{source === 'free' && freeSrc === 'wikimedia' ? 'Wikimedia Commons の CC0・パブリックドメインのみ(表記不要・商用可)。人物・商標・建造物などの権利が写り込んでいる場合があるので、使う前に出典ページで確認してください' : term.current ? '検索結果は CC0・パブリックドメインのみ(表記不要・商用可)' : 'おすすめ写真(Unsplash License・商用可)。キーワードで検索もできます'}。フレームを選んでからクリックすると枠の中に入ります。</p>
       {err && <p className="error">{err}</p>}
       <div className="photo-grid">
         {items.map((p) => (
