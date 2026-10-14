@@ -20,9 +20,12 @@ FabricObject.customProperties = ['id', 'name', 'assetId', 'locked', 'frame', 'ch
 
 export const SAVE_PROPS = ['id', 'name', 'assetId', 'locked', 'frame', 'chart', 'qr', 'table', 'vertical', 'curved', 'credit', 'subTargetCheck', 'cropX', 'cropY']
 
-const uid = () => Math.random().toString(36).slice(2, 10)
+export const uid = () => Math.random().toString(36).slice(2, 10)
 
 export type Listener = () => void
+
+/** 共同編集中の取り消し(Y.UndoManager)。あれば undo/redo はこちらを使う */
+export interface UndoHandler { undo(): void; redo(): void; canUndo(): boolean; canRedo(): boolean }
 
 /** ロック状態をオブジェクトの操作可否に反映する(toObject は lockMovement* を保存しないため読み込み後に付け直す) */
 export function applyLock(o: FabricObject, locked: boolean) {
@@ -66,6 +69,17 @@ export class EditorCore {
   private clipboard: FabricObject[] = []
   private guides: { v: number[]; h: number[] } = { v: [], h: [] }
   private pendingNudge = 0
+  private undoHandler: UndoHandler | null = null
+  private remoteDeferred = false
+  private liveTimer = 0
+  /** true なら文字入力中の変化も 300ms ごとに changeListeners へ届ける(共同編集用) */
+  liveText = false
+  /** いま届けている変化が文字入力途中のもの(共同編集が取り消しの区切りに使う) */
+  liveNow = false
+  /** ページを表示し終えた(共同編集が基準を取り直す) */
+  onShown?: (pageId: string) => void
+  /** 操作中で保留していた他の人の変更を、操作が終わったので反映し直してほしい */
+  onRemoteFlush?: () => void
   onContextMenu?: (x: number, y: number) => void
   /** 縦書きテキストをダブルクリックしたとき(編集欄を開く) */
   onEditVText?: (o: VText) => void
@@ -85,7 +99,9 @@ export class EditorCore {
     c.on('selection:cleared', emit)
     c.on('object:modified', () => this.commit())
     c.on('text:editing:exited', () => this.commit())
-    c.on('text:changed', emit)
+    c.on('text:changed', () => { emit(); if (this.liveText) this.scheduleLive() })
+    c.on('mouse:up', () => this.flushRemote())
+    c.on('text:editing:exited', () => this.flushRemote())
     c.on('object:moving', (e) => this.snap(e.target))
     c.on('mouse:up', () => { this.guides = { v: [], h: [] }; c.requestRenderAll() })
     c.on('after:render', () => this.drawGuides())
@@ -147,6 +163,8 @@ export class EditorCore {
 
   // ---------------- シリアライズ ----------------
   toJSON(): any {
+    // 共同編集はオブジェクト id で同期するので、id の無い物には必ず付ける
+    for (const o of this.canvas.getObjects()) if (!(o as any).id) (o as any).id = uid()
     const json = this.canvas.toObject(SAVE_PROPS)
     // 画像の src は一時 URL なので保存しない(assetId から復元する)
     const strip = (o: any) => { if (o.assetId) delete o.src; o.objects?.forEach(strip) }
@@ -186,6 +204,7 @@ export class EditorCore {
       this.pageId = pageId
       if (!this.history.has(pageId)) this.history.set(pageId, { stack: [JSON.stringify(this.toJSON())], index: 0 })
       this.emit()
+      this.onShown?.(pageId)
     })
   }
 
@@ -214,10 +233,135 @@ export class EditorCore {
     this.emit()
     this.changeListeners.forEach((f) => f())
   }
-  canUndo() { const h = this.history.get(this.pageId); return !!h && h.index > 0 }
-  canRedo() { const h = this.history.get(this.pageId); return !!h && h.index < h.stack.length - 1 }
-  undo() { return this.step(-1) }
-  redo() { return this.step(1) }
+  canUndo() { if (this.undoHandler) return this.undoHandler.canUndo(); const h = this.history.get(this.pageId); return !!h && h.index > 0 }
+  canRedo() { if (this.undoHandler) return this.undoHandler.canRedo(); const h = this.history.get(this.pageId); return !!h && h.index < h.stack.length - 1 }
+  undo() { return this.undoHandler ? this.viaHandler('undo') : this.step(-1) }
+  redo() { return this.undoHandler ? this.viaHandler('redo') : this.step(1) }
+  private viaHandler(kind: 'undo' | 'redo') {
+    this.finishEditing()
+    return this.enqueue(async () => { this.undoHandler?.[kind](); this.emit() })
+  }
+  /** 共同編集中は Y.UndoManager に切り替える(自分の操作だけを取り消す)。null で元に戻す */
+  setUndoHandler(h: UndoHandler | null) { this.undoHandler = h; this.emit() }
+
+  private scheduleLive() {
+    if (this.liveTimer) return
+    this.liveTimer = window.setTimeout(() => {
+      this.liveTimer = 0
+      this.liveNow = true
+      try { this.changeListeners.forEach((f) => f()) } finally { this.liveNow = false }
+    }, 300)
+  }
+  private flushRemote() {
+    if (!this.remoteDeferred) return
+    this.remoteDeferred = false
+    setTimeout(() => this.onRemoteFlush?.(), 0)
+  }
+
+  /** いま自分が操作中(文字の編集中・ドラッグ中)のオブジェクトの id。表の中のセルなら表の id も含む */
+  private busyIds(): Set<string> {
+    const s = new Set<string>()
+    const add = (o: any) => {
+      for (let x = o; x; x = x.group && !(x.group instanceof ActiveSelection) ? x.group : null) if (x.id) s.add(x.id)
+    }
+    const a = this.canvas.getActiveObject() as any
+    if (a?.isEditing) add(a)
+    const t = (this.canvas as any)._currentTransform?.target
+    if (t) (t instanceof ActiveSelection ? t.getObjects() : [t]).forEach(add)
+    return s
+  }
+
+  /**
+   * 共同編集: 他の人の変更を表示中のページに反映する(履歴は積まず、commit も出さない)。
+   * json = 反映したいページの全体(objects は並び順どおり)。changed = 作り直す物の id、removed = 消す物の id。
+   * 自分が編集中・ドラッグ中の物は触らず、その id を返す(操作が終わったら onRemoteFlush で呼び直してもらう)。
+   */
+  applyRemote(json: any, opts: { changed: Set<string>; removed: Set<string>; pageId?: string }): Promise<Set<string>> {
+    return this.enqueue(async () => {
+      const deferred = new Set<string>()
+      if (opts.pageId && opts.pageId !== this.pageId) return deferred
+      const c = this.canvas
+      const target: any[] = Array.isArray(json?.objects) ? json.objects : []
+      // 作り直す物は先に用意する(フォント・画像の読み込みを待つ間は通常どおり操作できる)
+      const built = new Map<string, FabricObject>()
+      const toBuild = target.filter((o) => o?.id && opts.changed.has(o.id))
+      if (toBuild.length) {
+        await ensureFonts({ objects: toBuild })
+        const resolved = await resolveAssets({ objects: toBuild })
+        for (const o of resolved.objects) {
+          try {
+            const [obj] = await util.enlivenObjects<FabricObject>([o])
+            if (!obj) continue
+            if ((obj as any).locked) applyLock(obj, true)
+            if ((obj as any).table) obj.set({ interactive: false })
+            built.set(o.id, obj)
+          } catch (e) { console.warn('共同編集: オブジェクトを復元できませんでした', o?.id, e) }
+        }
+      }
+      // 背景
+      let newBg: any
+      const curBg = c.backgroundColor as any
+      const curBgStr = JSON.stringify(curBg && typeof curBg === 'object' && typeof curBg.toObject === 'function' ? curBg.toObject() : curBg ?? '')
+      if (curBgStr !== JSON.stringify(json?.background ?? '')) {
+        if (!json?.background || typeof json.background === 'string') newBg = json?.background || '#ffffff'
+        else { try { newBg = (await util.enlivenObjectEnlivables<{ backgroundColor: any }>({ backgroundColor: json.background })).backgroundColor } catch { /* 背景は諦める */ } }
+      }
+      if (opts.pageId && opts.pageId !== this.pageId) return deferred
+      // ここから先は同期(途中で自分の操作が割り込まない)
+      const busy = this.busyIds()
+      this.restoring = true
+      try {
+        const old = c.getObjects()
+        const byId = new Map<string, FabricObject>()
+        for (const o of old) if ((o as any).id) byId.set((o as any).id, o)
+        const selIds = this.selected().map((o: any) => o.id as string | undefined)
+        const replaced = [...built.keys()].filter((id) => !busy.has(id))
+        const gone = [...opts.removed].filter((id) => byId.has(id) && !busy.has(id))
+        for (const id of opts.changed) if (busy.has(id)) deferred.add(id)
+        for (const id of opts.removed) if (busy.has(id)) deferred.add(id)
+        // 選択中の物が差し替え・削除されるなら、先に選択を外す(複数選択の座標を絶対座標に戻すため)
+        const touched = new Set([...replaced, ...gone])
+        const reselect = selIds.length > 0 && selIds.some((id) => id && touched.has(id))
+        if (reselect) c.discardActiveObject()
+        for (const id of gone) c.remove(byId.get(id)!)
+        for (const id of replaced) {
+          const o = byId.get(id)
+          if (o) c.remove(o)
+          c.add(built.get(id)!)
+        }
+        // 並び順を揃える。Y に載っていない自分だけの物(画像の送信待ちなど)は、元の隣り合わせを保つ
+        const present = new Map<string, FabricObject>()
+        for (const o of c.getObjects()) if ((o as any).id) present.set((o as any).id, o)
+        const desired: FabricObject[] = []
+        const inTarget = new Set<string>()
+        for (const o of target) { const x = o?.id && present.get(o.id); if (x && !inTarget.has(o.id)) { desired.push(x); inTarget.add(o.id) } }
+        let prev: FabricObject | null = null
+        for (const o of old) {
+          const id = (o as any).id as string | undefined
+          const now = id ? present.get(id) : o
+          if (!now || !c.getObjects().includes(now)) continue
+          if (id && inTarget.has(id)) { prev = now; continue }
+          const at = prev ? desired.indexOf(prev) + 1 : 0
+          desired.splice(at, 0, now)
+          prev = now
+        }
+        desired.forEach((o, i) => { if (c.getObjects()[i] !== o) c.moveObjectTo(o, i) })
+        if (newBg !== undefined) c.backgroundColor = newBg
+        if (reselect) {
+          const objs = selIds.map((id) => (id ? present.get(id) : undefined)).filter((o): o is FabricObject => !!o && c.getObjects().includes(o))
+          if (objs.length === 1) c.setActiveObject(objs[0])
+          else if (objs.length > 1) c.setActiveObject(new ActiveSelection(objs, { canvas: c }))
+        }
+        c.requestRenderAll()
+      } finally {
+        this.restoring = false
+      }
+      if (deferred.size) this.remoteDeferred = true
+      this.emit()
+      return deferred
+    })
+  }
+
   private step(d: number) {
     this.finishEditing()
     return this.enqueue(async () => {

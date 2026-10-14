@@ -16,6 +16,8 @@ export interface DesignDoc {
   createdAt: number
   /** HTML スライド(slide-studio 形式)のときだけ持つ。あれば pages は使わない */
   deck?: DeckData
+  /** 共同編集の部屋。あればエディタを開いたときに自動で接続する */
+  collab?: { room: string }
 }
 
 /** slide-studio の deck.json と同じ形 + メモ */

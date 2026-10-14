@@ -4,6 +4,7 @@ import './components/theme'
 import { Home } from './components/Home'
 import { Editor } from './components/Editor'
 import { ShareView } from './components/Share'
+import { CollabJoin } from './collab/Join'
 import { initSession } from './api/session'
 import { detectLocal } from './api/local'
 import { startLocalBridge } from './api/bridgeHandlers'
@@ -32,5 +33,7 @@ function Routes() {
   if (m) return <Editor key={m[1]} docId={m[1]} />
   const sh = hash.match(/^#\/s\/([\w-]+)/)
   if (sh) return <ShareView key={sh[1]} shareId={sh[1]} />
+  const cj = hash.match(/^#\/c\/([\w-]{22,64})/)
+  if (cj) return <CollabJoin key={cj[1]} room={cj[1]} />
   return <Home />
 }

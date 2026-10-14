@@ -5,6 +5,10 @@ export interface Env {
   /** 認証系の回数制限(IP ごと)。ローカルや未設定なら undefined */
   AUTH_LIMIT?: RateLimit
   REGISTER_LIMIT?: RateLimit
+  /** 共同編集の部屋(Durable Object)。未設定の環境では共同編集が 503 になる */
+  COLLAB: DurableObjectNamespace<import('./collab').CollabRoom>
+  /** 共同編集の部屋の作成・画像アップロードの回数制限(IP ごと)。未設定なら素通し */
+  COLLAB_LIMIT?: RateLimit
   /** 本人が wrangler secret put で設定する(未設定なら機能を隠す) */
   GOOGLE_CLIENT_ID?: string
   GOOGLE_CLIENT_SECRET?: string

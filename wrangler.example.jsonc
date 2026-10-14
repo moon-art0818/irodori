@@ -35,6 +35,11 @@
   // ratelimits が使えない環境なら、この項目ごと削除しても動く(Worker 側は未設定を許容している)
   "ratelimits": [
     { "name": "AUTH_LIMIT", "namespace_id": "4101", "simple": { "limit": 30, "period": 60 } },
-    { "name": "REGISTER_LIMIT", "namespace_id": "4102", "simple": { "limit": 3, "period": 60 } }
-  ]
+    { "name": "REGISTER_LIMIT", "namespace_id": "4102", "simple": { "limit": 3, "period": 60 } },
+    // 共同編集の部屋の作成・画像アップロード(IP ごと)
+    { "name": "COLLAB_LIMIT", "namespace_id": "4103", "simple": { "limit": 60, "period": 60 } }
+  ],
+  // 共同編集の部屋(1 部屋 = 1 オブジェクト)。SQLite 版なので無料プランで使える
+  "durable_objects": { "bindings": [{ "name": "COLLAB", "class_name": "CollabRoom" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["CollabRoom"] }]
 }

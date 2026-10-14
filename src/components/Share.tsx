@@ -1,4 +1,4 @@
-import { Copy, Link2, Share2 } from 'lucide-react'
+import { Copy, Link2, Share2, Users } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { api } from '../api/client'
 import { currentUser, initSession } from '../api/session'
@@ -9,9 +9,13 @@ import { usePopover } from './ColorPicker'
 import { exportDoc } from './Download'
 
 const shareUrl = (id: string) => `${location.origin}${location.pathname}#/s/${id}`
+export const collabUrl = (room: string) => `${location.origin}${location.pathname}#/c/${room}`
+
+/** 共同編集の操作(ローカル版では渡さない = 項目を出さない) */
+export interface CollabControl { room: string | null; busy: boolean; onStart: () => void; onStop: () => void }
 
 /** エディタ上部: 共有リンクの発行・停止 */
-export function ShareButton({ docId, initialShareId, beforeShare }: { docId: string; initialShareId: string | null; beforeShare: () => Promise<void> }) {
+export function ShareButton({ docId, initialShareId, beforeShare, collab }: { docId: string; initialShareId: string | null; beforeShare: () => Promise<void>; collab?: CollabControl }) {
   const { open, setOpen, ref } = usePopover()
   const [shareId, setShareId] = useState<string | null>(initialShareId)
   const [busy, setBusy] = useState(false)
@@ -44,6 +48,26 @@ export function ShareButton({ docId, initialShareId, beforeShare }: { docId: str
             </>
           )}
           {err && <p className="error">{err}</p>}
+          {collab && (
+            <div className="collab-sec">
+              <b><Users size={14} style={{ verticalAlign: '-2px' }} /> 共同編集</b>
+              {collab.room ? (
+                <>
+                  <p className="hint">リンクを知っている人は誰でも、いっしょに編集できます(ログイン不要)。部屋は最後の操作から 30 日で消えます。</p>
+                  <div className="row"><input className="search" readOnly value={collabUrl(collab.room)} onFocus={(e) => e.target.select()} /></div>
+                  <div className="row">
+                    <button className="primary-btn" onClick={async () => { await navigator.clipboard.writeText(collabUrl(collab.room!)); setCopied(true); setTimeout(() => setCopied(false), 1500) }}><Copy size={14} />{copied ? 'コピーしました' : '招待リンクをコピー'}</button>
+                    <button className="chip" disabled={collab.busy} onClick={collab.onStop}>共同編集をやめる(このデザインを切り離す)</button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="hint">リンクを知っている人だけがいっしょに編集できます。各自の端末にもコピーが保存されます。</p>
+                  <button className="primary-btn wide" disabled={collab.busy} onClick={collab.onStart}><Users size={16} />{collab.busy ? '準備中…' : '共同編集を始める'}</button>
+                </>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>

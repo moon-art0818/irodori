@@ -4,6 +4,7 @@ import * as recovery from './recovery'
 import * as google from './google'
 import * as photos from './photos'
 import * as docs from './docs'
+import { handleCollab } from './collab'
 import { HttpError, type Env, json } from './util'
 
 type Handler = (req: Request, env: Env, params: string[]) => Promise<Response>
@@ -62,6 +63,11 @@ export default {
     const url = new URL(req.url)
     try {
       if (!url.pathname.startsWith('/api/')) return json({ error: '見つかりません' }, 404)
+      // 共同編集は公開デモでも使える(部屋の人数・大きさ・期限で濫用を抑える)
+      if (url.pathname === '/api/collab' || url.pathname.startsWith('/api/collab/')) {
+        checkCsrf(req, url)
+        return await handleCollab(req, env, url)
+      }
       if (env.DEMO === '1') {
         // 公開デモ: 状態を返す2つ以外は使えない
         if (url.pathname === '/api/me') return json({ user: null, demo: true })
@@ -96,3 +102,6 @@ export default {
     }
   },
 } satisfies ExportedHandler<Env>
+
+// Durable Object のクラスは Worker のエントリから export する必要がある
+export { CollabRoom } from './collab'

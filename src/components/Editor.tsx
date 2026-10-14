@@ -14,7 +14,11 @@ import { DownloadButton, exportDoc } from './Download'
 import { ContextMenu, SHORTCUTS } from './ContextMenu'
 import { takeDrop, isIrodoriDrag } from '../editor/dnd'
 import { SHAPES } from '../data/shapes'
-import { ShareButton } from './Share'
+import { ShareButton, collabUrl } from './Share'
+import { CollabSession, createRoom } from '../collab/session'
+import { CollabBinding, type RemoteInfo } from '../collab/binding'
+import { colorFor, initPresence, saveName, savedName } from '../collab/presence'
+import { CollabBar, CursorLayer, NameModal } from '../collab/ui'
 import { migrateOne } from './Account'
 import { DeckEditor } from './DeckEditor'
 import { VTextEditor } from './VTextEditor'
@@ -73,6 +77,16 @@ export function Editor({ docId }: { docId: string }) {
   const localOnly = useRef(false)
   const setLocalOnly = (v: boolean) => { localOnly.current = v; setLocalOnlyState(v) }
   const version = useRef(0)
+  // 共同編集(doc.collab があれば自動で部屋につなぐ)
+  const [collab, setCollab] = useState<{ session: CollabSession; binding: CollabBinding } | null>(null)
+  const collabRef = useRef<{ session: CollabSession; binding: CollabBinding } | null>(null)
+  const [collabBusy, setCollabBusy] = useState(false)
+  const [myName, setMyName] = useState(savedName)
+  const [askName, setAskName] = useState<'' | 'start' | 'join'>('')
+  const declinedName = useRef(false)
+  const pageIdxRef = useRef(0)
+  /** いま見ている(見に行く途中の)ページ id。他の人の変更でページ一覧が動いても、見ているページを見失わないため */
+  const viewIdRef = useRef('')
   const bump = useCallback(() => { version.current++; setVersion(version.current) }, [])
 
   // 読み込み
@@ -135,12 +149,15 @@ export function Editor({ docId }: { docId: string }) {
   const flushRef = useRef(flush)
   flushRef.current = flush
   // 保存は内容を先に書き、サムネは後から作る(閉じる直前の変更を失わないため)
-  const persist = useCallback(() => {
+  const persist = useCallback((opts?: { remote?: boolean; live?: boolean }) => {
     if (!docRef.current || disposed.current) return
+    // 共同編集中は、変更を部屋にも書く(他の人から来た変更の保存では書き戻さない)
+    if (!opts?.remote) collabRef.current?.binding.pushLocal(docRef.current, !!opts?.live)
     dirty.current = true
     setSaveState('saving')
     clearTimeout(saveTimer.current)
-    saveTimer.current = window.setTimeout(flush, 400)
+    // 共同編集の他の人の変更・文字入力の途中経過は、保存の回数を抑えるため間を空ける
+    saveTimer.current = window.setTimeout(flush, opts?.remote || opts?.live ? 2500 : 400)
     clearTimeout(thumbDocTimer.current)
     thumbDocTimer.current = window.setTimeout(async () => {
       const d = docRef.current
@@ -209,7 +226,7 @@ export function Editor({ docId }: { docId: string }) {
       const d = docRef.current!
       const p = d.pages.find((x) => x.id === ed.pageId)
       if (p) { const anim = p.json?.animation; p.json = ed.toJSON(); if (anim) p.json.animation = anim; refreshThumb(p.id) }
-      persist()
+      persist({ live: ed.liveNow })
     })
     fit()
     ed.showPage(doc.pages[0].id, doc.pages[0].json)
@@ -224,6 +241,101 @@ export function Editor({ docId }: { docId: string }) {
     if (areaRef.current) ro.observe(areaRef.current)
     return () => { off1(); off2(); ro.disconnect() }
   }, [loaded, bump, fit, persist, refreshThumb])
+
+  // ---------------- 共同編集 ----------------
+  useEffect(() => { pageIdxRef.current = pageIdx }, [pageIdx])
+  const collabRoom = !isLocal() ? (doc?.collab?.room ?? null) : null
+  /** 部屋で他の人の変更が届いた(binding が doc.pages を更新済み): 画面とページ一覧を合わせる */
+  const handleRemote = useCallback(async (i: RemoteInfo) => {
+    const d = docRef.current, ed = edRef.current
+    if (!d || !ed || disposed.current) return
+    if (d.width !== ed.width || d.height !== ed.height) { ed.resizePage(d.width, d.height); fit() }
+    setDoc({ ...d })
+    let idx = d.pages.findIndex((p) => p.id === (viewIdRef.current || ed.pageId))
+    if (idx < 0 && viewIdRef.current) idx = d.pages.findIndex((p) => p.id === ed.pageId)
+    if (idx < 0 || i.adopt) {
+      // 開いていたページが無くなった、または部屋の内容に切り替えた: 開き直す
+      idx = Math.max(0, Math.min(d.pages.length - 1, idx < 0 ? pageIdxRef.current : idx))
+      setPageIdx(idx)
+      viewIdRef.current = d.pages[idx].id
+      await ed.showPage(d.pages[idx].id, d.pages[idx].json).catch(() => {})
+    } else {
+      setPageIdx(idx)
+      await collabRef.current?.binding.syncCurrentPage()
+    }
+    if (disposed.current) return
+    for (const p of d.pages) if (i.adopt || i.structural || i.meta || i.changedPages.includes(p.id)) refreshThumb(p.id)
+    persist({ remote: true })
+  }, [fit, refreshThumb, persist])
+
+  useEffect(() => {
+    const ed = edRef.current
+    if (!loaded || !ed || !collabRoom) return
+    if (!myName) { if (!declinedName.current) setAskName('join'); return }
+    const session = new CollabSession(collabRoom)
+    const aw = session.awareness
+    initPresence(aw, myName)
+    const binding = new CollabBinding(session, () => docRef.current, (m) => toast.error(m))
+    binding.onRemote = (i) => { void handleRemote(i) }
+    binding.attach(ed)
+    collabRef.current = { session, binding }
+    setCollab({ session, binding })
+    const offErr = session.onError((m) => toast.error(m))
+    // 自分の居場所(ページ・選択)とカーソルを知らせる
+    let lastPage = '', lastSel = ''
+    const pub = () => {
+      if (ed.pageId !== lastPage) { lastPage = ed.pageId; aw.setLocalStateField('page', ed.pageId) }
+      const sel = ed.selected().map((o: any) => o.id as string).filter(Boolean)
+      const key = sel.join(',')
+      if (key !== lastSel) { lastSel = key; aw.setLocalStateField('sel', sel) }
+    }
+    pub()
+    const offUpd = ed.onUpdate(pub)
+    let lastMove = 0
+    const onMove = (e: any) => {
+      const now = performance.now()
+      if (now - lastMove < 100) return
+      lastMove = now
+      const pt = ed.canvas.getScenePoint(e.e)
+      aw.setLocalStateField('cursor', { x: Math.round(pt.x), y: Math.round(pt.y) })
+    }
+    const onLeave = () => aw.setLocalStateField('cursor', null)
+    ed.canvas.on('mouse:move', onMove)
+    const upper = ed.canvas.upperCanvasEl
+    upper.addEventListener('mouseleave', onLeave)
+    return () => {
+      offErr(); offUpd()
+      ed.canvas.off('mouse:move', onMove)
+      upper.removeEventListener('mouseleave', onLeave)
+      binding.destroy()
+      session.destroy()
+      collabRef.current = null
+      setCollab(null)
+    }
+  }, [loaded, collabRoom, myName, handleRemote])
+
+  const startCollab = async (skipAsk = false) => {
+    if (!skipAsk && !savedName()) { setAskName('start'); return }
+    setCollabBusy(true)
+    try {
+      const room = await createRoom()
+      const d = syncDoc()
+      d.collab = { room }
+      setDoc({ ...d })
+      dirty.current = true
+      await flush()
+      navigator.clipboard?.writeText(collabUrl(room)).then(() => toast.success('招待リンクをコピーしました')).catch(() => {})
+    } catch (e: any) { toast.error(e?.message ?? String(e)) } finally { setCollabBusy(false) }
+  }
+  const stopCollab = () => {
+    const d = docRef.current
+    if (!d) return
+    delete d.collab
+    setDoc({ ...d })
+    dirty.current = true
+    flush()
+    toast('共同編集をやめました。このデザインは手元のコピーとして残ります')
+  }
 
   useEffect(() => () => {
     // ホームへ戻る前に編集中の文字を確定してから破棄する
@@ -356,9 +468,12 @@ export function Editor({ docId }: { docId: string }) {
     if (i < 0 || i >= d.pages.length) return
     const prev = pageIdx
     setPageIdx(i)
+    const prevView = viewIdRef.current
+    viewIdRef.current = d.pages[i].id
     try { await ed.showPage(d.pages[i].id, d.pages[i].json) }
     catch (e: any) {
       setPageIdx(prev)
+      viewIdRef.current = prevView
       alert(`ページ ${i + 1} を開けませんでした(データが壊れている可能性があります)。${e?.message ?? ''}`)
       await ed.showPage(d.pages[prev].id, d.pages[prev].json).catch(() => {})
     }
@@ -413,7 +528,14 @@ export function Editor({ docId }: { docId: string }) {
   }
   const [modal, setModal] = useState<'' | 'resize' | 'versions'>('')
   const [presenting, setPresenting] = useState(false)
-  const reloadFromRepo = () => { disposed.current = true; dirty.current = false; location.reload() }
+  const reloadFromRepo = async () => {
+    // 共同編集中は、サイズ変更・履歴の復元の結果を先に部屋へ書く(再読込のあと部屋の内容に上書きされないように)
+    const c = collabRef.current
+    if (c) {
+      try { const d = await repo.get(docId); if (d) { c.binding.pushLocal(d); await new Promise((r) => setTimeout(r, 400)) } } catch { /* 書けなくても再読込はする */ }
+    }
+    disposed.current = true; dirty.current = false; location.reload()
+  }
 
   const saveAsCopy = async () => {
     const d = structuredClone(syncDoc())
@@ -457,6 +579,7 @@ export function Editor({ docId }: { docId: string }) {
         <span className={'save-state ' + saveState} title={saveState === 'error' ? 'このブラウザでは保存できません(プライベートモード等)。ダウンロードして保存してください' : ''}>
           {saveState === 'error' ? <><CloudOff size={16} />保存できません</> : saveState === 'saving' ? <><Cloud size={16} />保存中…</> : <><Cloud size={16} />保存済み</>}
         </span>
+        {collab && myName && <CollabBar session={collab.session} selfName={myName} selfColor={colorFor(myName)} />}
         <div className="tb-spacer" />
         <button className="tb-btn" title="サイズを変更(マジックリサイズ)" onClick={() => { syncDoc(); flush(); setModal('resize') }}><Scaling size={18} /><span className="hide-sm">サイズ変更</span></button>
         {ed && <DesignTools ed={ed} getDoc={syncDoc} gotoPage={gotoPage} reload={() => { const d = docRef.current!; const p = d.pages[pageIdx]; persist(); ed.replaceCurrent(p.json); d.pages.forEach((x) => refreshThumb(x.id)) }} />}
@@ -464,13 +587,16 @@ export function Editor({ docId }: { docId: string }) {
         {isLocal() && <AskAIButton docId={doc.id} page={pageIdx + 1} />}
         <button className="tb-btn" title="バージョン履歴" onClick={() => { syncDoc(); flush(); setModal('versions') }}><History size={18} /></button>
         <button className="tb-btn" title="プレゼンテーション(全画面)" onClick={() => { syncDoc(); setPresenting(true) }}><Play size={18} /><span className="hide-sm">プレゼン</span></button>
-        <ShareButton docId={doc.id} initialShareId={(doc as any).shareId ?? null} beforeShare={async () => { syncDoc(); dirty.current = true; await flush() }} />
+        <ShareButton docId={doc.id} initialShareId={(doc as any).shareId ?? null} beforeShare={async () => { syncDoc(); dirty.current = true; await flush() }}
+          collab={isLocal() ? undefined : { room: collabRoom, busy: collabBusy, onStart: () => { void startCollab() }, onStop: stopCollab }} />
         <DownloadButton getDoc={syncDoc} peekDoc={() => docRef.current!} currentPage={pageIdx} />
       </header>
       {modal === 'resize' && <ResizeModal getDoc={syncDoc} onClose={() => setModal('')} onResized={reloadFromRepo} />}
       {modal === 'versions' && <VersionsModal getDoc={syncDoc} onClose={() => setModal('')} onRestore={reloadFromRepo} />}
       {presenting && <Present doc={docRef.current!} startPage={pageIdx} onClose={() => setPresenting(false)} />}
       {saveState === 'error' && !conflict && <div className="conflict">保存できていません(通信が切れたか、このブラウザでは保存できない設定です)。作業を失わないよう、いまダウンロードしておくことをおすすめします。<button className="chip" onClick={() => exportDoc(syncDoc(), 'pdf', 1, 'all')}>PDF で保存</button><button className="chip" onClick={() => { dirty.current = true; flush() }}>もう一度保存</button></div>}
+      {askName && <NameModal initial="" onCancel={() => { declinedName.current = true; setAskName('') }}
+        onOk={(n) => { const mode = askName; saveName(n); setMyName(n); setAskName(''); if (mode === 'start') void startCollab(true) }} />}
       {vEdit && ed && <VTextEditor ed={ed} v={vEdit} onClose={() => setVEdit(null)} />}
       {menu && ed && <ContextMenu ed={ed} x={menu.x} y={menu.y} onClose={() => setMenu(null)} />}
       {help && <div className="modal-back" onPointerDown={() => setHelp(false)}><div className="modal" onPointerDown={(e) => e.stopPropagation()}><h3>キーボードショートカット</h3><table className="keys"><tbody>{SHORTCUTS.map(([k, v]) => <tr key={k}><td><kbd>{k}</kbd></td><td>{v}</td></tr>)}</tbody></table><div className="row" style={{ justifyContent: 'flex-end', marginTop: 12 }}><button className="chip" onClick={() => setHelp(false)}>閉じる</button></div></div></div>}
@@ -488,7 +614,10 @@ export function Editor({ docId }: { docId: string }) {
             onContextMenu={(e) => e.preventDefault()}
             onDragOver={(e) => { e.preventDefault(); setDragOver(true) }} onDragLeave={() => setDragOver(false)} onDrop={onDrop}
             onMouseDown={(e) => { if (e.target === areaRef.current && ed) { ed.canvas.discardActiveObject(); ed.canvas.requestRenderAll(); ed.emit() } }}>
-            <div className="page-shadow"><canvas ref={canvasEl} /></div>
+            <div className="page-wrap">
+              <div className="page-shadow"><canvas ref={canvasEl} /></div>
+              {ed && collab && <CursorLayer ed={ed} awareness={collab.session.awareness} />}
+            </div>
           </div>
           <footer className="bottombar">
             <div className="pages">

@@ -27,6 +27,11 @@ export async function putAsset(blob: Blob): Promise<{ id: string; url: string }>
 let shareCtx: string | null = null
 export function setShareContext(shareId: string | null) { shareCtx = shareId }
 
+/** 共同編集の部屋から画像を取ってくる関数(部屋につながっている間だけ登録される) */
+type RemoteFetcher = (id: string) => Promise<Blob | null>
+let remoteFetcher: RemoteFetcher | null = null
+export function setRemoteAssetFetcher(fn: RemoteFetcher | null) { remoteFetcher = fn }
+
 export async function getAssetURL(id: string): Promise<string | null> {
   const hit = urlCache.get(id)
   if (hit) return hit
@@ -35,7 +40,7 @@ export async function getAssetURL(id: string): Promise<string | null> {
   if (!blob) {
     // この端末に無ければサーバーから取って、端末にも残す
     const { isLocal } = await import('../api/local')
-    const path = isLocal() ? `/local/assets/${encodeURIComponent(id)}` : shareCtx ? `/api/share/${shareCtx}/assets/${id}` : `/api/assets/${id}`
+    const path = isLocal() ? `/local/assets/${encodeURIComponent(id)}` : shareCtx ? `/api/share/${shareCtx}/assets/${encodeURIComponent(id)}` : `/api/assets/${encodeURIComponent(id)}`
     try {
       const r = await fetch(path, { credentials: 'same-origin' })
       if (r.ok && (r.headers.get('content-type') ?? '').startsWith('image/')) {
@@ -43,6 +48,13 @@ export async function getAssetURL(id: string): Promise<string | null> {
         if (!shareCtx) await idbPut('assets', { id, blob, type: blob.type, createdAt: Date.now() })
       }
     } catch { /* オフライン等 */ }
+    // 自分のサーバーに無ければ、共同編集の部屋から取る(他の人が置いた画像)
+    if (!blob && remoteFetcher) {
+      try {
+        blob = (await remoteFetcher(id)) ?? undefined
+        if (blob) await idbPut('assets', { id, blob, type: blob.type, createdAt: Date.now() })
+      } catch { /* 取れなければ画像なしで表示する */ }
+    }
   }
   if (!blob) return null
   const url = URL.createObjectURL(blob)

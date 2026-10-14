@@ -405,3 +405,23 @@ code { font-family: var(--font-mono); font-size: .92em; background: var(--surfac
 .collage-btn:hover { border-color: var(--line-strong); }
 .collage-btn svg { width: 100%; height: 100%; } .collage-btn rect { fill: var(--line-strong); }
 .tool-tile.on { border-color: var(--accent); color: var(--accent-text); background: var(--accent-soft); }
+
+/* ---- 共同編集 ---- */
+.page-wrap { position: relative; }
+.collab-layer { position: absolute; inset: 0; pointer-events: none; overflow: hidden; line-height: normal; }
+.collab-cursor { position: absolute; left: 0; top: 0; will-change: transform; transition: transform .09s linear; }
+.collab-cursor svg { display: block; filter: drop-shadow(0 1px 1.5px rgba(0,0,0,.35)); }
+.collab-cursor span, .collab-sel span { position: absolute; left: 14px; top: 14px; padding: 1px 7px; border-radius: 9px; color: #fff; font-size: 11px; font-weight: 600; white-space: nowrap; box-shadow: 0 1px 3px rgba(0,0,0,.25); }
+.collab-sel { position: absolute; border: 2px solid; border-radius: 2px; }
+.collab-sel span { left: -2px; top: -20px; border-radius: 4px 4px 4px 0; }
+.collab-bar { display: inline-flex; align-items: center; gap: 8px; margin: 0 4px; }
+.collab-status { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 600; padding: 3px 9px; border-radius: 999px; background: var(--accent-soft); color: var(--accent-text); white-space: nowrap; }
+.collab-status.connecting { background: var(--surface-3); color: var(--text-2); }
+.collab-status.offline { background: var(--danger-soft); color: var(--danger); }
+.collab-avatars { display: inline-flex; }
+.collab-avatar { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; color: #fff; font-size: 12px; font-weight: 700; border: 2px solid var(--surface); margin-left: -6px; }
+.collab-avatar:first-child { margin-left: 0; }
+.collab-avatar.more { background: var(--text-3); font-size: 10px; }
+.collab-name { width: 360px; }
+.collab-sec { display: flex; flex-direction: column; gap: 8px; border-top: 1px solid var(--line); margin-top: 8px; padding-top: 10px; }
+@media (max-width: 900px) { .collab-status { display: none; } }
