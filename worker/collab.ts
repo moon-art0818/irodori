@@ -15,6 +15,9 @@ const MIME_RE = /^(image\/[a-z0-9.+-]{1,40}|video\/mp4|video\/webm|audio\/mpeg|a
 const MAX_CONN = 20
 const MAX_MESSAGE = 2 * 1024 * 1024
 const MAX_DOC_BYTES = 20 * 1024 * 1024
+/** 上限を超えた後も、削除や文字直しなどの小さな更新は受け付ける(部屋が固まらないように)。この大きさを超えたら全部止める */
+const SMALL_UPDATE = 64 * 1024
+const HARD_MAX_DOC_BYTES = 24 * 1024 * 1024
 const CHUNK = 1024 * 1024
 const SAVE_DELAY_MS = 2000
 const TTL_MS = 30 * 24 * 60 * 60 * 1000
@@ -216,10 +219,11 @@ export class CollabRoom extends DurableObject<Env> {
       const type = decoding.readVarUint(dec)
       if (type === MSG_SYNC) {
         const sub = decoding.peekVarUint(dec) // 0 = step1(質問), 1 = step2, 2 = update
-        if (sub !== 0 && this.approx + u8.length > MAX_DOC_BYTES) {
+        const cap = u8.length <= SMALL_UPDATE ? HARD_MAX_DOC_BYTES : MAX_DOC_BYTES
+        if (sub !== 0 && this.approx + u8.length > cap) {
           // 目安が上限を超えたら、実際の大きさを測り直してから判断する
           this.approx = Y.encodeStateAsUpdate(this.doc).length
-          if (this.approx + u8.length > MAX_DOC_BYTES) { this.sendError(ws, 'この部屋のデザインが大きすぎて、これ以上は保存できません(上限 20MB)'); return }
+          if (this.approx + u8.length > cap) { this.sendError(ws, 'この部屋のデザインが大きすぎて、これ以上は保存できません(上限 20MB)'); return }
         }
         const enc = encoding.createEncoder()
         encoding.writeVarUint(enc, MSG_SYNC)

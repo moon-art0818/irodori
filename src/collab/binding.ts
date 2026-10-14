@@ -84,6 +84,19 @@ export function readPage(m: YPage): PageData {
   return { id: String(m.get('id')), json: { ...(top && typeof top === 'object' ? top : {}), objects } }
 }
 
+/** ページの並び: meta.pageOrder(JSON 配列・後勝ち)の順。そこに無いページは Y.Array の順で末尾に。
+ *  並べ替えでページを入れ直すと、同時にそのページを編集していた人の変更が消えるので、並びは別に持つ */
+export function orderedPages(ydoc: Y.Doc): YPage[] {
+  const maps = ydoc.getArray<YPage>('pages').toArray()
+  const order = parse(ydoc.getMap<any>('meta').get('pageOrder'))
+  if (!Array.isArray(order)) return maps
+  const byId = new Map(maps.map((m) => [String(m.get('id')), m]))
+  const out: YPage[] = [], seen = new Set<string>()
+  for (const id of order) { const m = typeof id === 'string' ? byId.get(id) : undefined; if (m && !seen.has(id)) { seen.add(id); out.push(m) } }
+  for (const m of maps) if (!seen.has(String(m.get('id')))) out.push(m)
+  return out
+}
+
 /** 部屋の内容から DesignDoc の中身を読む(部屋に入った人が手元のデザインを作るとき) */
 export function readDoc(ydoc: Y.Doc): Pick<DesignDoc, 'name' | 'width' | 'height' | 'print' | 'pages'> | null {
   const pages = ydoc.getArray<YPage>('pages')
@@ -96,7 +109,7 @@ export function readDoc(ydoc: Y.Doc): Pick<DesignDoc, 'name' | 'width' | 'height
     width: num(meta.get('width'), 1080),
     height: num(meta.get('height'), 1080),
     print: print && typeof print === 'object' ? print : undefined,
-    pages: pages.toArray().map(readPage),
+    pages: orderedPages(ydoc).map(readPage),
   }
 }
 
@@ -268,22 +281,25 @@ export class CollabBinding {
     return m
   }
 
-  /** ページの追加・削除・並べ替え(Y.Array に移動が無いので、動いたページは入れ直して中身を書き直す) */
+  /** ページの追加・削除・並べ替え。中身(Y.Map)は動かさず、並びは meta.pageOrder に書く */
   private pushStructure(doc: DesignDoc) {
     const want = doc.pages.map((p) => p.id)
     const wantSet = new Set(want)
-    let ids = this.yIds()
+    const ids = this.yIds()
+    const seen = new Set<string>()
     for (let i = ids.length - 1; i >= 0; i--) {
-      if (!wantSet.has(ids[i]) || ids.indexOf(ids[i]) !== i) { this.pages.delete(i, 1); if (!wantSet.has(ids[i])) this.bases.delete(ids[i]) }
+      // 消えたページと、同じ id の重複(古い版の入れ直しの名残)を除く
+      const dup = ids.indexOf(ids[i]) !== i
+      if (!wantSet.has(ids[i]) || dup) { this.pages.delete(i, 1); if (!wantSet.has(ids[i])) this.bases.delete(ids[i]) }
+      else seen.add(ids[i])
     }
-    for (let i = 0; i < want.length; i++) {
-      ids = this.yIds()
-      if (ids[i] === want[i]) continue
-      const j = ids.indexOf(want[i], i + 1)
-      if (j >= 0) this.pages.delete(j, 1)
-      this.pages.insert(i, [this.skeleton(want[i])])
-      this.bases.set(want[i], emptyBase()) // 中身を全部書き直す
+    const added = want.filter((id) => !seen.has(id))
+    if (added.length) {
+      this.pages.push(added.map((id) => this.skeleton(id)))
+      for (const id of added) this.bases.set(id, emptyBase()) // 中身を全部書く
     }
+    const order = JSON.stringify(want)
+    if (this.meta.get('pageOrder') !== order) this.meta.set('pageOrder', order)
   }
 
   private baseOf(m: YPage): PageBase {
@@ -393,7 +409,7 @@ export class CollabBinding {
     for (let i = 0; i < 2; i++) {
       try {
         const r = await fetch(`/api/collab/${encodeURIComponent(this.session.room)}/assets/${encodeURIComponent(id)}`, { credentials: 'same-origin' })
-        if (r.ok && (r.headers.get('content-type') ?? '').startsWith('image/')) return await r.blob()
+        if (r.ok && /^(image|video|audio)\//.test(r.headers.get('content-type') ?? '')) return await r.blob()
         if (r.status !== 404) return null
       } catch { /* 通信エラー: 少し待って再試行 */ }
       await sleep(700)
@@ -407,7 +423,7 @@ export class CollabBinding {
     let metaCh = false, structural = false
     const ch = new Set<string>()
     for (const type of txn.changed.keys() as Iterable<any>) {
-      if (type === this.meta) metaCh = true
+      if (type === this.meta) { metaCh = true; if ((txn.changed.get(type) as Set<string> | undefined)?.has('pageOrder')) structural = true }
       else if (type === this.pages) structural = true
       else if (type instanceof Y.Map) {
         const par = type.parent as any
@@ -428,7 +444,7 @@ export class CollabBinding {
     if (structural || ch.size) {
       const cur = this.ed?.pageId
       const prev = new Map(d.pages.map((p) => [p.id, p]))
-      const maps = this.pages.toArray()
+      const maps = orderedPages(this.ydoc)
       if (maps.length === 0) {
         // 別々の人が同時に最後のページを消した等: ページが 0 枚の状態は受け入れず、手元の内容を部屋に戻す
         this.bases.clear(); this.known.clear()
